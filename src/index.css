@@ -1660,13 +1660,12 @@ select:focus-visible {
 
 /* ===== SETTINGS PAGE ===== */
 .settings-page {
-  min-height: 100vh;
-  padding: 28px;
-  background: var(--navy);
+  min-height: 100%;
+  padding: 0;
+  background: transparent;
   display: flex;
   flex-direction: column;
   gap: 16px;
-  overflow-y: auto;
 }
 
 .settings-header {
@@ -1706,6 +1705,30 @@ select:focus-visible {
   margin-top: -4px;
   font-size: 12px;
   color: var(--text-muted);
+}
+
+.settings-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.settings-grid.two-col {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.settings-field label {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.settings-field.full-width {
+  grid-column: 1 / -1;
 }
 
 .risk-slider-wrap {
@@ -1856,6 +1879,16 @@ select:focus-visible {
 .save-success {
   font-size: 12px;
   color: var(--green);
+}
+
+.save-error {
+  font-size: 12px;
+  color: #f87171;
+}
+
+.vault-notes {
+  min-height: 94px;
+  resize: vertical;
 }
 
 .save-settings-btn {
@@ -2050,6 +2083,10 @@ select:focus-visible {
 
   .sector-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .settings-grid.two-col {
+    grid-template-columns: 1fr;
   }
 
   .investment-range {

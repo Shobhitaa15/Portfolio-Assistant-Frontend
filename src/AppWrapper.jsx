@@ -28,11 +28,16 @@ export default function AppWrapper() {
     setUser(null)
   }
 
+  const handleUserUpdate = (nextUser) => {
+    setUser(nextUser)
+    localStorage.setItem('user', JSON.stringify(nextUser))
+  }
+
   if (!user) return <Auth onLogin={handleLogin} />
 
   return (
     <>
-      <App user={user} onLogout={handleLogout} />
+      <App user={user} onLogout={handleLogout} onUserUpdate={handleUserUpdate} />
       {showOnboarding && (
         <OnboardingModal
           onComplete={handleOnboardingComplete}

@@ -1,8 +1,10 @@
-import { useState, useEffect, useCallback } from 'react'
+﻿import { useState, useEffect, useCallback } from 'react'
 import './index.css'
 import Portfolio from './Portfolio'
 import { apiUrl } from './api'
 import Analytics from './Analytics'
+import Settings from './Settings'
+import Vault from './Vault'
 
 const toNumber = (value) => {
   const parsed = Number.parseFloat(value)
@@ -38,7 +40,8 @@ const summarizePortfolio = (holdings = []) => {
   }
 }
 
-function App({ user, onLogout }) {
+function App({ user, onLogout, onUserUpdate }) {
+  const [currentUser, setCurrentUser] = useState(user)
   const [activeNav, setActiveNav] = useState('Dashboard')
   const [showPortfolio, setShowPortfolio] = useState(false)
   const [messages, setMessages] = useState([])
@@ -46,10 +49,11 @@ function App({ user, onLogout }) {
   const [loading, setLoading] = useState(false)
   const [searchInput, setSearchInput] = useState('')
   const [portfolioData, setPortfolioData] = useState(null)
+  const [vaultSettings, setVaultSettings] = useState(null)
   const [recentActivity] = useState([
-    { icon: '📈', name: 'TCS Buy Order', sub: 'Tata Consultancy · IT Equity', status: 'SETTLED', date: 'Mar 15, 2026', impact: '+₹12,400', growth: '+4.2% GROWTH', positive: true },
-    { icon: '💰', name: 'Quarterly Dividend', sub: 'HDFC Bank · Banking', status: 'PENDING', date: 'Mar 12, 2026', impact: '+₹3,120', growth: 'AUTO-INVESTED', positive: true },
-    { icon: '🏷️', name: 'Tata Motors Sell', sub: 'Tata Motors · Automotive', status: 'SETTLED', date: 'Mar 10, 2026', impact: '-₹8,500', growth: '-1.1% EXIT', positive: false },
+    { icon: 'ðŸ“ˆ', name: 'TCS Buy Order', sub: 'Tata Consultancy Â· IT Equity', status: 'SETTLED', date: 'Mar 15, 2026', impact: '+â‚¹12,400', growth: '+4.2% GROWTH', positive: true },
+    { icon: 'ðŸ’°', name: 'Quarterly Dividend', sub: 'HDFC Bank Â· Banking', status: 'PENDING', date: 'Mar 12, 2026', impact: '+â‚¹3,120', growth: 'AUTO-INVESTED', positive: true },
+    { icon: 'ðŸ·ï¸', name: 'Tata Motors Sell', sub: 'Tata Motors Â· Automotive', status: 'SETTLED', date: 'Mar 10, 2026', impact: '-â‚¹8,500', growth: '-1.1% EXIT', positive: false },
   ])
 
   const [marketRows, setMarketRows] = useState([])
@@ -58,7 +62,7 @@ function App({ user, onLogout }) {
   const [marketSearch, setMarketSearch] = useState('')
   const [marketSector, setMarketSector] = useState('All')
 
-  const firstName = user?.name?.split(' ')[0] || 'Investor'
+  const firstName = currentUser?.name?.split(' ')[0] || 'Investor'
 
   const getGreeting = () => {
     const hour = new Date().getHours()
@@ -67,16 +71,30 @@ function App({ user, onLogout }) {
     return 'Good evening,'
   }
 
+  useEffect(() => {
+    setCurrentUser(user)
+  }, [user])
+
+  const loadVaultSettings = useCallback(() => {
+    try {
+      const key = `profitly_vault_${currentUser?.id || 'demo'}`
+      const saved = localStorage.getItem(key)
+      setVaultSettings(saved ? JSON.parse(saved) : null)
+    } catch {
+      setVaultSettings(null)
+    }
+  }, [currentUser?.id])
+
   const fetchPortfolio = useCallback(async () => {
     try {
-      const params = new URLSearchParams({ userId: user?.id || 'demo' })
+      const params = new URLSearchParams({ userId: currentUser?.id || 'demo' })
       const res = await fetch(`${apiUrl('/api/portfolio/get')}?${params.toString()}`)
       const data = await res.json()
       setPortfolioData(data.portfolio || null)
     } catch (e) {
       console.log('Portfolio fetch error:', e)
     }
-  }, [user?.id])
+  }, [currentUser?.id])
 
   const fetchMarkets = useCallback(async () => {
     setMarketLoading(true)
@@ -123,6 +141,10 @@ function App({ user, onLogout }) {
     return () => clearInterval(intervalId)
   }, [activeNav, fetchPortfolio])
 
+  useEffect(() => {
+    loadVaultSettings()
+  }, [loadVaultSettings])
+
   const sendMessage = async (text) => {
     const messageText = text || input
     if (!messageText.trim()) return
@@ -136,7 +158,7 @@ function App({ user, onLogout }) {
         body: JSON.stringify({
           message: messageText,
           sessionHistory: messages.map(m => ({ role: m.role, content: m.content })),
-          userId: user?.id || 'demo'
+          userId: currentUser?.id || 'demo'
         })
       })
       const data = await response.json()
@@ -154,7 +176,7 @@ function App({ user, onLogout }) {
 
   if (showPortfolio) return (
     <Portfolio
-      userId={user?.id || 'demo'}
+      userId={currentUser?.id || 'demo'}
       setPortfolio={(nextPortfolio) => {
         if (Array.isArray(nextPortfolio)) {
           setPortfolioData((prev) => ({ ...(prev || {}), ...summarizePortfolio(nextPortfolio) }))
@@ -168,16 +190,31 @@ function App({ user, onLogout }) {
     />
   )
 
+  const handleProfileUpdate = (nextUser) => {
+    setCurrentUser(nextUser)
+    if (onUserUpdate) onUserUpdate(nextUser)
+  }
+
+  const handleVaultSave = (nextVaultSettings) => {
+    setVaultSettings(nextVaultSettings)
+  }
+
   const totalValue = portfolioData?.totalValue || 124500
   const avgReturn = portfolioData?.avgReturn || 2.4
   const marketSectors = ['All', ...Array.from(new Set([marketSector, ...marketRows.map((row) => row.sector).filter(Boolean)])).filter(Boolean).sort()]
+  const vaultProtectionText = vaultSettings
+    ? `${vaultSettings.autoReserve ? 'Reserve automation active' : 'Reserve automation inactive'}. Emergency buffer ${vaultSettings.emergencyBufferPercent || 12}% with max exposure ${vaultSettings.maxSingleExposure || 28}%.`
+    : 'Configure your emergency buffer and risk guardrails in Vault settings.'
+  const vaultLockText = vaultSettings
+    ? `${vaultSettings.lockWithdrawals ? 'Withdrawal lock on' : 'Withdrawal lock off'}${vaultSettings.withdrawalWindow ? ` (${vaultSettings.withdrawalWindow})` : ''}.`
+    : 'Withdrawal lock status will appear here after setup.'
 
   return (
     <div className="app-shell">
       {/* Sidebar */}
       <aside className="shell-sidebar">
         <div className="shell-logo">
-          <div className="shell-logo-icon">⚖️</div>
+          <div className="shell-logo-icon">âš–ï¸</div>
           <div>
             <div className="shell-logo-name">PROFITLY</div>
             <div className="shell-logo-sub">SOVEREIGN LEDGER</div>
@@ -186,11 +223,11 @@ function App({ user, onLogout }) {
 
         <nav className="shell-nav">
           {[
-            { icon: '▦', label: 'Dashboard' },
-            { icon: '💼', label: 'Portfolio' },
-            { icon: '📊', label: 'Markets' },
-            { icon: '📉', label: 'Analytics' },
-            { icon: '🔒', label: 'Vault' },
+            { icon: 'â–¦', label: 'Dashboard' },
+            { icon: 'ðŸ’¼', label: 'Portfolio' },
+            { icon: 'ðŸ“Š', label: 'Markets' },
+            { icon: 'ðŸ“‰', label: 'Analytics' },
+            { icon: 'ðŸ”’', label: 'Vault' },
           ].map(item => (
             <button
               key={item.label}
@@ -212,10 +249,10 @@ function App({ user, onLogout }) {
 
         <div className="shell-sidebar-bottom">
           <button className="shell-nav-item" onClick={() => setActiveNav('Settings')}>
-            <span className="shell-nav-icon">⚙️</span> Settings
+            <span className="shell-nav-icon">âš™ï¸</span> Settings
           </button>
           <button className="shell-nav-item" onClick={onLogout}>
-            <span className="shell-nav-icon">🚪</span> Logout
+            <span className="shell-nav-icon">ðŸšª</span> Logout
           </button>
         </div>
       </aside>
@@ -225,7 +262,7 @@ function App({ user, onLogout }) {
         {/* Top bar */}
         <header className="shell-topbar">
           <div className="shell-search">
-            <span>🔍</span>
+            <span>ðŸ”</span>
             <input
               value={activeNav === 'Markets' ? marketSearch : searchInput}
               onChange={(e) => {
@@ -307,8 +344,8 @@ function App({ user, onLogout }) {
                       <span className="markets-ticker">{row.ticker}</span>
                       <span className="markets-company">{row.company}</span>
                       <span>{row.sector || 'N/A'}</span>
-                      <span>₹{Number(row.latestClose || 0).toLocaleString('en-IN')}</span>
-                      <span>₹{Number(row.lowPrice || 0).toLocaleString('en-IN')} - ₹{Number(row.highPrice || 0).toLocaleString('en-IN')}</span>
+                      <span>â‚¹{Number(row.latestClose || 0).toLocaleString('en-IN')}</span>
+                      <span>â‚¹{Number(row.lowPrice || 0).toLocaleString('en-IN')} - â‚¹{Number(row.highPrice || 0).toLocaleString('en-IN')}</span>
                       <span>{Number(row.volume || 0).toLocaleString('en-IN')}</span>
                       <span className={Number(row.returnPercent) >= 0 ? 'markets-positive' : 'markets-negative'}>
                         {Number(row.returnPercent) >= 0 ? '+' : ''}{Number(row.returnPercent || 0).toFixed(2)}%
@@ -322,6 +359,18 @@ function App({ user, onLogout }) {
             </div>
           ) : activeNav === 'Analytics' ? (
             <Analytics portfolio={portfolioData} />
+          ) : activeNav === 'Settings' ? (
+            <Settings
+              user={currentUser}
+              userId={currentUser?.id || 'demo'}
+              onProfileUpdate={handleProfileUpdate}
+            />
+          ) : activeNav === 'Vault' ? (
+            <Vault
+              user={currentUser}
+              userId={currentUser?.id || 'demo'}
+              onSave={handleVaultSave}
+            />
           ) : (
             <>
           {/* Morning briefing */}
@@ -339,25 +388,25 @@ function App({ user, onLogout }) {
             <div className="shell-wealth">
               <p className="shell-wealth-label">AGGREGATE WEALTH</p>
               <p className="shell-wealth-value">
-                ₹{totalValue.toLocaleString('en-IN')}
+                â‚¹{totalValue.toLocaleString('en-IN')}
                 <span className="shell-wealth-decimal">.00</span>
               </p>
               <p className="shell-wealth-change">
-                📈 +₹{Math.round(totalValue * 0.024).toLocaleString('en-IN')} ({avgReturn}%)
+                ðŸ“ˆ +â‚¹{Math.round(totalValue * 0.024).toLocaleString('en-IN')} ({avgReturn}%)
               </p>
             </div>
           </div>
 
 {/* Middle cards row */}
 <div className="shell-cards-row">
-  {/* Left column — stats */}
+  {/* Left column â€” stats */}
   <div className="shell-left-col">
     {/* Fit Score card */}
     <div className="shell-card">
       <p className="shell-card-label">PORTFOLIO FIT SCORE</p>
       <div className="shell-card-header-row">
         <h2 className="shell-fit-score">94.2</h2>
-        <div className="shell-verified">🏅</div>
+        <div className="shell-verified">ðŸ…</div>
       </div>
       <div className="shell-score-bar-bg">
         <div className="shell-score-bar" style={{ width: '94.2%' }} />
@@ -371,7 +420,7 @@ function App({ user, onLogout }) {
     <div className="shell-card">
       <p className="shell-card-label">PROJECTED ANNUAL YIELD</p>
       <h3 className="shell-yield-value">
-        ₹{Math.round(totalValue * 0.1).toLocaleString('en-IN')}
+        â‚¹{Math.round(totalValue * 0.1).toLocaleString('en-IN')}
         <span className="shell-yield-change"> +0.8%</span>
       </h3>
       <div className="shell-quick-btns" style={{marginTop: '12px'}}>
@@ -386,12 +435,12 @@ function App({ user, onLogout }) {
 
     {/* Market Alerts */}
     <div className="shell-card">
-      <p className="shell-card-label">MARKET ALERT 🔔</p>
+      <p className="shell-card-label">MARKET ALERT ðŸ””</p>
       <p className="shell-alert-text">Nifty 50 is up 1.2% today. IT sector showing strong momentum. Consider increasing tech exposure.</p>
     </div>
   </div>
 
-  {/* Center — AI + Chat unified */}
+  {/* Center â€” AI + Chat unified */}
   <div className="shell-card shell-card-dark shell-ai-chat">
     <div className="shell-insight-header">
       <div className="shell-ai-badge">AI</div>
@@ -407,7 +456,7 @@ function App({ user, onLogout }) {
     <div className="shell-chat-messages">
       {messages.length === 0 && (
         <div className="shell-empty-chat">
-          <p>🤖 Ask me anything about your investments, risk levels, or market opportunities.</p>
+          <p>ðŸ¤– Ask me anything about your investments, risk levels, or market opportunities.</p>
         </div>
       )}
       {messages.map((msg, i) => (
@@ -420,7 +469,7 @@ function App({ user, onLogout }) {
             <div key={j} className="shell-inline-stock">
               <div>
                 <span className="shell-stock-name">{o.company}</span>
-                <span className="shell-stock-meta"> · {o.sector} · ₹{o.latestClose}</span>
+                <span className="shell-stock-meta"> Â· {o.sector} Â· â‚¹{o.latestClose}</span>
               </div>
               <span className="shell-stock-score">{o.fitScore?.score}/100</span>
             </div>
@@ -446,33 +495,34 @@ function App({ user, onLogout }) {
 
     {/* Chat input */}
     <div className="shell-chat-input-wrap">
-      <span>💬</span>
+      <span>ðŸ’¬</span>
       <input
         value={input}
         onChange={e => setInput(e.target.value)}
         onKeyPress={e => e.key === 'Enter' && sendMessage()}
         placeholder="Ask Profitly AI about your investments..."
       />
-      <button className="shell-send" onClick={() => sendMessage()}>→</button>
+      <button className="shell-send" onClick={() => sendMessage()}>â†’</button>
     </div>
 
     {/* Quick asks */}
     <div className="shell-quick-asks">
-      {['📊 Analyze my portfolio', '⚠️ Check risk levels', '💡 Best opportunities', '📈 Top IT stocks'].map((q, i) => (
+      {['ðŸ“Š Analyze my portfolio', 'âš ï¸ Check risk levels', 'ðŸ’¡ Best opportunities', 'ðŸ“ˆ Top IT stocks'].map((q, i) => (
         <button key={i} className="shell-quick-ask" onClick={() => sendMessage(q)}>{q}</button>
       ))}
     </div>
 
     <button className="shell-rebalance-btn" onClick={() => sendMessage('Should I rebalance my portfolio?')}>
-      Execute Rebalance →
+      Execute Rebalance â†’
     </button>
   </div>
 
-  {/* Right — Vault Protection */}
+  {/* Right â€” Vault Protection */}
   <div className="shell-right-col">
     <div className="shell-card">
-      <p className="shell-card-label">VAULT PROTECTION 🔒</p>
-      <p className="shell-alert-text">Auto-liquidity buffer engaged. ₹12k moved to reserve for upcoming margin calls.</p>
+      <p className="shell-card-label">VAULT PROTECTION ðŸ”’</p>
+      <p className="shell-alert-text">{vaultProtectionText}</p>
+      <p className="shell-alert-text" style={{ marginTop: '8px' }}>{vaultLockText}</p>
     </div>
     <div className="shell-card">
       <p className="shell-card-label">PORTFOLIO HEALTH</p>
@@ -495,7 +545,7 @@ function App({ user, onLogout }) {
       </div>
     </div>
     <div className="shell-card">
-      <p className="shell-card-label">SECTORS 📊</p>
+      <p className="shell-card-label">SECTORS ðŸ“Š</p>
       {portfolioData?.holdings ? (
         [...new Set(portfolioData.holdings.map(h => h.sector))].map((s, i) => (
           <div key={i} className="shell-sector-item">
@@ -555,3 +605,4 @@ function App({ user, onLogout }) {
 }
 
 export default App
+
