@@ -1,4 +1,12 @@
-const rawBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:5000';
+const isLocalhost =
+  typeof window !== 'undefined' &&
+  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
+const fallbackBaseUrl = isLocalhost
+  ? 'http://127.0.0.1:5000'
+  : 'https://investment-portfolio-dc27.onrender.com';
+
+const rawBaseUrl = import.meta.env.VITE_API_BASE_URL || fallbackBaseUrl;
 
 export const API_BASE_URL = rawBaseUrl.replace(/\/+$/, '');
 
