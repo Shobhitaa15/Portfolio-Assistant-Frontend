@@ -2,6 +2,41 @@ import { useState, useEffect, useCallback } from 'react'
 import './index.css'
 import Portfolio from './Portfolio'
 import { apiUrl } from './api'
+import Analytics from './Analytics'
+
+const toNumber = (value) => {
+  const parsed = Number.parseFloat(value)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+const summarizePortfolio = (holdings = []) => {
+  const normalizedHoldings = holdings.map((holding) => {
+    const entryPrice = toNumber(holding.entryPrice)
+    const currentValue = toNumber(holding.currentValue)
+    const returnPercentage = entryPrice > 0
+      ? Number((((currentValue - entryPrice) / entryPrice) * 100).toFixed(2))
+      : 0
+
+    return {
+      ...holding,
+      entryPrice,
+      currentValue,
+      returnPercentage,
+    }
+  })
+
+  const totalValue = normalizedHoldings.reduce((sum, holding) => sum + holding.currentValue, 0)
+  const avgReturn = normalizedHoldings.length > 0
+    ? Number((normalizedHoldings.reduce((sum, holding) => sum + holding.returnPercentage, 0) / normalizedHoldings.length).toFixed(2))
+    : 0
+
+  return {
+    holdings: normalizedHoldings,
+    totalValue,
+    avgReturn,
+    updatedAt: new Date().toISOString(),
+  }
+}
 
 function App({ user, onLogout }) {
   const [activeNav, setActiveNav] = useState('Dashboard')
@@ -32,15 +67,16 @@ function App({ user, onLogout }) {
     return 'Good evening,'
   }
 
-  async function fetchPortfolio() {
+  const fetchPortfolio = useCallback(async () => {
     try {
-      const res = await fetch(apiUrl('/api/portfolio/get'))
+      const params = new URLSearchParams({ userId: user?.id || 'demo' })
+      const res = await fetch(`${apiUrl('/api/portfolio/get')}?${params.toString()}`)
       const data = await res.json()
-      if (data.portfolio) setPortfolioData(data.portfolio)
+      setPortfolioData(data.portfolio || null)
     } catch (e) {
       console.log('Portfolio fetch error:', e)
     }
-  }
+  }, [user?.id])
 
   const fetchMarkets = useCallback(async () => {
     setMarketLoading(true)
@@ -68,7 +104,7 @@ function App({ user, onLogout }) {
       fetchPortfolio()
     }, 0)
     return () => clearTimeout(timer)
-  }, [])
+  }, [fetchPortfolio])
 
   useEffect(() => {
     if (activeNav !== 'Markets') return
@@ -77,6 +113,15 @@ function App({ user, onLogout }) {
     }, 0)
     return () => clearTimeout(timer)
   }, [activeNav, fetchMarkets])
+
+  useEffect(() => {
+    if (activeNav !== 'Analytics') return
+    fetchPortfolio()
+    const intervalId = setInterval(() => {
+      fetchPortfolio()
+    }, 12000)
+    return () => clearInterval(intervalId)
+  }, [activeNav, fetchPortfolio])
 
   const sendMessage = async (text) => {
     const messageText = text || input
@@ -110,7 +155,15 @@ function App({ user, onLogout }) {
   if (showPortfolio) return (
     <Portfolio
       userId={user?.id || 'demo'}
-      setPortfolio={(holdings) => setPortfolioData(prev => ({ ...(prev || {}), holdings }))}
+      setPortfolio={(nextPortfolio) => {
+        if (Array.isArray(nextPortfolio)) {
+          setPortfolioData((prev) => ({ ...(prev || {}), ...summarizePortfolio(nextPortfolio) }))
+          return
+        }
+        if (nextPortfolio && typeof nextPortfolio === 'object') {
+          setPortfolioData(nextPortfolio)
+        }
+      }}
       onBack={() => { setShowPortfolio(false); setActiveNav('Dashboard'); fetchPortfolio() }}
     />
   )
@@ -267,6 +320,8 @@ function App({ user, onLogout }) {
                 </div>
               )}
             </div>
+          ) : activeNav === 'Analytics' ? (
+            <Analytics portfolio={portfolioData} />
           ) : (
             <>
           {/* Morning briefing */}

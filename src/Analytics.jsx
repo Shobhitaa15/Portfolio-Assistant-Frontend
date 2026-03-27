@@ -1,129 +1,345 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
-  PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
-  BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  LineChart, Line, Legend
+  PieChart,
+  Pie,
+  Cell,
+  Tooltip,
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  LineChart,
+  Line,
 } from 'recharts'
 
 const COLORS = ['#c9a84c', '#10b981', '#2563eb', '#ef4444', '#f59e0b', '#8b5cf6', '#06b6d4', '#ec4899']
+const RISK_COLORS = {
+  low: '#10b981',
+  medium: '#f59e0b',
+  high: '#ef4444',
+}
 
-const riskData = [
-  { name: 'Low Risk',    value: 35, color: '#10b981' },
-  { name: 'Medium Risk', value: 45, color: '#f59e0b' },
-  { name: 'High Risk',   value: 20, color: '#ef4444' },
-]
+const toNumber = (value) => {
+  const parsed = Number.parseFloat(value)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+const clamp = (value, min, max) => Math.min(Math.max(value, min), max)
+
+const getRiskBand = (returnPct) => {
+  const absReturn = Math.abs(returnPct)
+  if (absReturn <= 8) return 'low'
+  if (absReturn <= 20) return 'medium'
+  return 'high'
+}
+
+const buildTrendData = (totalValue, avgReturn) => {
+  const labels = ['6m ago', '5m ago', '4m ago', '3m ago', '2m ago', 'Now']
+  if (!totalValue) {
+    return labels.map((label) => ({ label, value: 0 }))
+  }
+
+  const monthlyGrowth = avgReturn / 12 / 100
+  const safeGrowth = Number.isFinite(monthlyGrowth) ? monthlyGrowth : 0
+
+  let base = totalValue
+  for (let i = 0; i < 5; i += 1) {
+    base /= 1 + safeGrowth
+  }
+
+  const series = []
+  let value = base
+  for (let i = 0; i < labels.length; i += 1) {
+    series.push({
+      label: labels[i],
+      value: Math.max(0, Number(value.toFixed(2))),
+    })
+    value *= 1 + safeGrowth
+  }
+
+  series[series.length - 1].value = totalValue
+  return series
+}
+
+const getStdDev = (numbers) => {
+  if (!numbers.length) return 0
+  const mean = numbers.reduce((sum, value) => sum + value, 0) / numbers.length
+  const variance = numbers.reduce((sum, value) => sum + (value - mean) ** 2, 0) / numbers.length
+  return Math.sqrt(variance)
+}
 
 export default function Analytics({ portfolio }) {
   const [activeTab, setActiveTab] = useState('overview')
+  const [now, setNow] = useState(() => new Date())
 
-  // Build sector data from portfolio
-  const sectorData = portfolio?.holdings ? 
-    Object.entries(
-      portfolio.holdings.reduce((acc, h) => {
-        acc[h.sector] = (acc[h.sector] || 0) + h.currentValue
+  useEffect(() => {
+    const intervalId = setInterval(() => setNow(new Date()), 1000)
+    return () => clearInterval(intervalId)
+  }, [])
+
+  const holdings = useMemo(() => {
+    if (!Array.isArray(portfolio?.holdings)) return []
+
+    return portfolio.holdings.map((holding) => {
+      const entryPrice = toNumber(holding.entryPrice)
+      const currentValue = toNumber(holding.currentValue)
+      const returnPercentage = Number.isFinite(holding.returnPercentage)
+        ? toNumber(holding.returnPercentage)
+        : entryPrice > 0
+          ? Number((((currentValue - entryPrice) / entryPrice) * 100).toFixed(2))
+          : 0
+
+      return {
+        ...holding,
+        entryPrice,
+        currentValue,
+        returnPercentage,
+        sector: holding.sector || 'Uncategorized',
+        company: holding.company || 'Unknown Asset',
+      }
+    })
+  }, [portfolio])
+
+  const totalValue = useMemo(
+    () => (toNumber(portfolio?.totalValue) > 0
+      ? toNumber(portfolio.totalValue)
+      : holdings.reduce((sum, holding) => sum + holding.currentValue, 0)),
+    [portfolio?.totalValue, holdings]
+  )
+
+  const investedValue = useMemo(
+    () => holdings.reduce((sum, holding) => sum + holding.entryPrice, 0),
+    [holdings]
+  )
+
+  const pnlValue = totalValue - investedValue
+
+  const avgReturn = useMemo(() => {
+    const apiAvg = toNumber(portfolio?.avgReturn)
+    if (apiAvg) return apiAvg
+    if (!holdings.length) return 0
+    const sum = holdings.reduce((acc, holding) => acc + holding.returnPercentage, 0)
+    return Number((sum / holdings.length).toFixed(2))
+  }, [portfolio?.avgReturn, holdings])
+
+  const sectorData = useMemo(() => {
+    if (!holdings.length) return []
+
+    const grouped = holdings.reduce((acc, holding) => {
+      acc[holding.sector] = (acc[holding.sector] || 0) + holding.currentValue
+      return acc
+    }, {})
+
+    return Object.entries(grouped)
+      .map(([name, value]) => ({ name, value: Number(value.toFixed(2)) }))
+      .sort((a, b) => b.value - a.value)
+  }, [holdings])
+
+  const returnData = useMemo(() => {
+    if (!holdings.length) return []
+
+    return holdings
+      .map((holding) => ({
+        name: holding.company.length > 12 ? `${holding.company.slice(0, 12)}...` : holding.company,
+        return: holding.returnPercentage,
+      }))
+      .sort((a, b) => b.return - a.return)
+  }, [holdings])
+
+  const riskData = useMemo(() => {
+    if (!holdings.length) {
+      return [
+        { name: 'Low Risk', value: 0, color: RISK_COLORS.low },
+        { name: 'Medium Risk', value: 0, color: RISK_COLORS.medium },
+        { name: 'High Risk', value: 0, color: RISK_COLORS.high },
+      ]
+    }
+
+    const counts = holdings.reduce(
+      (acc, holding) => {
+        const band = getRiskBand(holding.returnPercentage)
+        acc[band] += 1
         return acc
-      }, {})
-    ).map(([name, value]) => ({ name, value: Math.round(value) }))
-    : [
-      { name: 'IT',           value: 35000 },
-      { name: 'Banking',      value: 28000 },
-      { name: 'Healthcare',   value: 18000 },
-      { name: 'Automobile',   value: 15000 },
-      { name: 'Oil & Gas',    value: 12000 },
-      { name: 'Consumer',     value: 10000 },
+      },
+      { low: 0, medium: 0, high: 0 }
+    )
+
+    const total = holdings.length
+    return [
+      { name: 'Low Risk', value: Number(((counts.low / total) * 100).toFixed(1)), color: RISK_COLORS.low },
+      { name: 'Medium Risk', value: Number(((counts.medium / total) * 100).toFixed(1)), color: RISK_COLORS.medium },
+      { name: 'High Risk', value: Number(((counts.high / total) * 100).toFixed(1)), color: RISK_COLORS.high },
     ]
+  }, [holdings])
 
-  const returnData = portfolio?.holdings ?
-    portfolio.holdings.map(h => ({
-      name: h.company.length > 10 ? h.company.substring(0, 10) + '...' : h.company,
-      return: parseFloat(h.returnPercentage)
-    }))
-    : [
-      { name: 'TCS',       return: 18.3 },
-      { name: 'HDFC Bank', return: 9.1  },
-      { name: 'Infosys',   return: 14.2 },
-      { name: 'Wipro',     return: 8.4  },
-      { name: 'ICICI',     return: 22.1 },
+  const trendData = useMemo(() => buildTrendData(totalValue, avgReturn), [totalValue, avgReturn])
+
+  const riskScores = useMemo(() => {
+    const returns = holdings.map((holding) => holding.returnPercentage)
+    const stdDev = getStdDev(returns)
+    const uniqueSectors = new Set(holdings.map((holding) => holding.sector)).size
+    const totalHoldings = holdings.length || 1
+    const liquidCount = holdings.filter((holding) => holding.currentValue >= 5000).length
+    const highRiskPct = riskData.find((item) => item.name === 'High Risk')?.value || 0
+    const mediumRiskPct = riskData.find((item) => item.name === 'Medium Risk')?.value || 0
+
+    return [
+      {
+        label: 'Volatility',
+        score: clamp(Math.round(stdDev * 3), 0, 100),
+        color: '#f59e0b',
+      },
+      {
+        label: 'Diversification',
+        score: clamp(Math.round((uniqueSectors / totalHoldings) * 160), 10, 100),
+        color: '#10b981',
+      },
+      {
+        label: 'Liquidity',
+        score: clamp(Math.round((liquidCount / totalHoldings) * 100), 0, 100),
+        color: '#2563eb',
+      },
+      {
+        label: 'Market Risk',
+        score: clamp(Math.round(highRiskPct + mediumRiskPct * 0.55), 0, 100),
+        color: '#ef4444',
+      },
     ]
+  }, [holdings, riskData])
 
-  const lineData = [
-    { month: 'Oct', value: 95000  },
-    { month: 'Nov', value: 102000 },
-    { month: 'Dec', value: 98000  },
-    { month: 'Jan', value: 108000 },
-    { month: 'Feb', value: 115000 },
-    { month: 'Mar', value: 124500 },
-  ]
+  const insights = useMemo(() => {
+    if (!holdings.length) {
+      return [
+        {
+          title: 'Add portfolio data',
+          insight: 'Add or upload holdings to unlock live analytics and personalized insights.',
+          type: 'info',
+        },
+      ]
+    }
 
-  const totalValue = portfolio?.totalValue || 124500
-  const avgReturn  = portfolio?.avgReturn  || 25
-  const totalHoldings = portfolio?.holdings?.length || 5
+    const best = [...holdings].sort((a, b) => b.returnPercentage - a.returnPercentage)[0]
+    const worst = [...holdings].sort((a, b) => a.returnPercentage - b.returnPercentage)[0]
+    const largestSector = [...sectorData].sort((a, b) => b.value - a.value)[0]
+    const sectorShare = totalValue > 0
+      ? Number(((largestSector.value / totalValue) * 100).toFixed(1))
+      : 0
+
+    return [
+      {
+        title: 'Top performer',
+        insight: `${best.company} is currently the strongest position with a ${best.returnPercentage.toFixed(2)}% return.`,
+        type: 'positive',
+      },
+      {
+        title: 'Watchlist signal',
+        insight: `${worst.company} is your weakest holding at ${worst.returnPercentage.toFixed(2)}%. Review if this still matches your strategy.`,
+        type: worst.returnPercentage < 0 ? 'warning' : 'info',
+      },
+      {
+        title: 'Sector concentration',
+        insight: `${largestSector.name} accounts for ${sectorShare}% of portfolio value. ${sectorShare > 45 ? 'Consider diversification to reduce concentration risk.' : 'Allocation looks balanced for now.'}`,
+        type: sectorShare > 45 ? 'warning' : 'positive',
+      },
+      {
+        title: 'Portfolio momentum',
+        insight: `Average return is ${avgReturn.toFixed(2)}% with ${holdings.length} active holdings and total value INR ${Math.round(totalValue).toLocaleString('en-IN')}.`,
+        type: avgReturn >= 0 ? 'positive' : 'warning',
+      },
+    ]
+  }, [holdings, sectorData, totalValue, avgReturn])
+
+  const totalHoldings = holdings.length
+  const riskLevel = riskData.reduce((top, item) => (item.value > top.value ? item : top), riskData[0] || { name: 'N/A' }).name
 
   return (
     <div className="analytics-page">
       <div className="analytics-header">
         <div>
-          <h2 className="analytics-title">📊 Portfolio Analytics</h2>
-          <p className="analytics-sub">Deep insights into your investment performance</p>
+          <h2 className="analytics-title">Portfolio Analytics</h2>
+          <p className="analytics-sub">
+            Live metrics from your latest portfolio input. Updated {now.toLocaleTimeString('en-IN')}
+          </p>
         </div>
       </div>
 
-      {/* Summary cards */}
       <div className="analytics-stats">
         {[
-          { emoji: '💰', label: 'Total Value',    value: `₹${totalValue.toLocaleString()}`,  change: '↑ 12.4%',      positive: true  },
-          { emoji: '📈', label: 'Avg Return',     value: `${avgReturn}%`,                    change: 'Above Market', positive: true  },
-          { emoji: '📂', label: 'Holdings',       value: totalHoldings,                      change: 'Diversified',  positive: true  },
-          { emoji: '⚠️', label: 'Risk Level',     value: 'Medium',                           change: 'Balanced',     positive: true  },
-        ].map((s, i) => (
-          <div key={i} className="analytics-stat-card">
-            <span className="stat-emoji">{s.emoji}</span>
-            <p className="stat-label">{s.label}</p>
-            <p className="stat-value">{s.value}</p>
-            <p className={`stat-change ${s.positive ? 'positive' : 'warning'}`}>{s.change}</p>
+          {
+            label: 'Total Value',
+            value: `INR ${Math.round(totalValue).toLocaleString('en-IN')}`,
+            change: pnlValue >= 0
+              ? `+INR ${Math.round(pnlValue).toLocaleString('en-IN')} unrealized`
+              : `-INR ${Math.round(Math.abs(pnlValue)).toLocaleString('en-IN')} unrealized`,
+            positive: pnlValue >= 0,
+          },
+          {
+            label: 'Average Return',
+            value: `${avgReturn.toFixed(2)}%`,
+            change: avgReturn >= 0 ? 'Positive momentum' : 'Negative momentum',
+            positive: avgReturn >= 0,
+          },
+          {
+            label: 'Holdings',
+            value: totalHoldings,
+            change: `${new Set(holdings.map((holding) => holding.sector)).size} sectors tracked`,
+            positive: true,
+          },
+          {
+            label: 'Risk Profile',
+            value: riskLevel,
+            change: 'Auto-scored from holding volatility',
+            positive: riskLevel === 'Low Risk',
+          },
+        ].map((stat) => (
+          <div key={stat.label} className="analytics-stat-card">
+            <p className="stat-label">{stat.label}</p>
+            <p className="stat-value">{stat.value}</p>
+            <p className={`stat-change ${stat.positive ? 'positive' : 'warning'}`}>{stat.change}</p>
           </div>
         ))}
       </div>
 
-      {/* Tabs */}
       <div className="analytics-tabs">
         {[
-          { key: 'overview',  label: '🗺️ Overview'        },
-          { key: 'returns',   label: '📈 Returns'          },
-          { key: 'risk',      label: '⚠️ Risk Breakdown'   },
-          { key: 'insights',  label: '💡 AI Insights'      },
-        ].map(t => (
+          { key: 'overview', label: 'Overview' },
+          { key: 'returns', label: 'Returns' },
+          { key: 'risk', label: 'Risk' },
+          { key: 'insights', label: 'Insights' },
+        ].map((tab) => (
           <button
-            key={t.key}
-            className={`analytics-tab ${activeTab === t.key ? 'active' : ''}`}
-            onClick={() => setActiveTab(t.key)}
+            key={tab.key}
+            className={`analytics-tab ${activeTab === tab.key ? 'active' : ''}`}
+            onClick={() => setActiveTab(tab.key)}
           >
-            {t.label}
+            {tab.label}
           </button>
         ))}
       </div>
 
-      {/* Overview Tab */}
       {activeTab === 'overview' && (
         <div className="charts-grid">
           <div className="chart-card">
-            <h3 className="chart-title">🥧 Sector Allocation</h3>
+            <h3 className="chart-title">Sector Allocation</h3>
             <ResponsiveContainer width="100%" height={260}>
               <PieChart>
                 <Pie
                   data={sectorData}
-                  cx="50%" cy="50%"
+                  cx="50%"
+                  cy="50%"
                   outerRadius={90}
                   dataKey="value"
                   label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                   labelLine={false}
                 >
-                  {sectorData.map((_, i) => (
-                    <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                  {sectorData.map((_, index) => (
+                    <Cell key={index} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
                 <Tooltip
-                  formatter={(v) => [`₹${v.toLocaleString()}`, 'Value']}
+                  formatter={(value) => [`INR ${Number(value).toLocaleString('en-IN')}`, 'Value']}
                   contentStyle={{ background: '#0d1428', border: '1px solid rgba(201,168,76,0.2)', borderRadius: 8, color: '#f0ece0' }}
                 />
               </PieChart>
@@ -131,14 +347,14 @@ export default function Analytics({ portfolio }) {
           </div>
 
           <div className="chart-card">
-            <h3 className="chart-title">📉 Portfolio Value Over Time</h3>
+            <h3 className="chart-title">Portfolio Trend</h3>
             <ResponsiveContainer width="100%" height={260}>
-              <LineChart data={lineData}>
+              <LineChart data={trendData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(201,168,76,0.1)" />
-                <XAxis dataKey="month" stroke="#4a5068" tick={{ fill: '#8a8fa8', fontSize: 12 }} />
-                <YAxis stroke="#4a5068" tick={{ fill: '#8a8fa8', fontSize: 11 }} tickFormatter={v => `₹${(v/1000).toFixed(0)}k`} />
+                <XAxis dataKey="label" stroke="#4a5068" tick={{ fill: '#8a8fa8', fontSize: 12 }} />
+                <YAxis stroke="#4a5068" tick={{ fill: '#8a8fa8', fontSize: 11 }} tickFormatter={(value) => `INR ${(value / 1000).toFixed(0)}k`} />
                 <Tooltip
-                  formatter={(v) => [`₹${v.toLocaleString()}`, 'Portfolio Value']}
+                  formatter={(value) => [`INR ${Number(value).toLocaleString('en-IN')}`, 'Portfolio Value']}
                   contentStyle={{ background: '#0d1428', border: '1px solid rgba(201,168,76,0.2)', borderRadius: 8, color: '#f0ece0' }}
                 />
                 <Line type="monotone" dataKey="value" stroke="#c9a84c" strokeWidth={2.5} dot={{ fill: '#c9a84c', r: 4 }} activeDot={{ r: 6 }} />
@@ -148,22 +364,21 @@ export default function Analytics({ portfolio }) {
         </div>
       )}
 
-      {/* Returns Tab */}
       {activeTab === 'returns' && (
         <div className="chart-card full-width">
-          <h3 className="chart-title">📊 Returns by Holding</h3>
+          <h3 className="chart-title">Returns by Holding</h3>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={returnData} margin={{ top: 10, right: 20, left: 0, bottom: 20 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(201,168,76,0.1)" />
               <XAxis dataKey="name" stroke="#4a5068" tick={{ fill: '#8a8fa8', fontSize: 12 }} />
-              <YAxis stroke="#4a5068" tick={{ fill: '#8a8fa8', fontSize: 12 }} tickFormatter={v => `${v}%`} />
+              <YAxis stroke="#4a5068" tick={{ fill: '#8a8fa8', fontSize: 12 }} tickFormatter={(value) => `${value}%`} />
               <Tooltip
-                formatter={(v) => [`${v}%`, 'Return']}
+                formatter={(value) => [`${Number(value).toFixed(2)}%`, 'Return']}
                 contentStyle={{ background: '#0d1428', border: '1px solid rgba(201,168,76,0.2)', borderRadius: 8, color: '#f0ece0' }}
               />
               <Bar dataKey="return" radius={[6, 6, 0, 0]}>
-                {returnData.map((entry, i) => (
-                  <Cell key={i} fill={entry.return >= 0 ? '#10b981' : '#ef4444'} />
+                {returnData.map((entry, index) => (
+                  <Cell key={index} fill={entry.return >= 0 ? '#10b981' : '#ef4444'} />
                 ))}
               </Bar>
             </BarChart>
@@ -171,28 +386,28 @@ export default function Analytics({ portfolio }) {
         </div>
       )}
 
-      {/* Risk Tab */}
       {activeTab === 'risk' && (
         <div className="charts-grid">
           <div className="chart-card">
-            <h3 className="chart-title">⚠️ Risk Distribution</h3>
+            <h3 className="chart-title">Risk Distribution</h3>
             <ResponsiveContainer width="100%" height={260}>
               <PieChart>
                 <Pie
                   data={riskData}
-                  cx="50%" cy="50%"
+                  cx="50%"
+                  cy="50%"
                   innerRadius={60}
                   outerRadius={90}
                   dataKey="value"
                   label={({ name, value }) => `${name}: ${value}%`}
                   labelLine={false}
                 >
-                  {riskData.map((entry, i) => (
-                    <Cell key={i} fill={entry.color} />
+                  {riskData.map((entry, index) => (
+                    <Cell key={index} fill={entry.color} />
                   ))}
                 </Pie>
                 <Tooltip
-                  formatter={(v) => [`${v}%`, 'Allocation']}
+                  formatter={(value) => [`${value}%`, 'Allocation']}
                   contentStyle={{ background: '#0d1428', border: '1px solid rgba(201,168,76,0.2)', borderRadius: 8, color: '#f0ece0' }}
                 />
               </PieChart>
@@ -200,21 +415,16 @@ export default function Analytics({ portfolio }) {
           </div>
 
           <div className="chart-card">
-            <h3 className="chart-title">🎯 Risk Score Breakdown</h3>
+            <h3 className="chart-title">Risk Score Breakdown</h3>
             <div className="risk-meters">
-              {[
-                { label: 'Volatility',    score: 42, color: '#f59e0b' },
-                { label: 'Diversification', score: 78, color: '#10b981' },
-                { label: 'Liquidity',     score: 65, color: '#2563eb' },
-                { label: 'Market Risk',   score: 35, color: '#ef4444' },
-              ].map((r, i) => (
-                <div key={i} className="risk-meter">
+              {riskScores.map((score) => (
+                <div key={score.label} className="risk-meter">
                   <div className="risk-meter-top">
-                    <span className="risk-meter-label">{r.label}</span>
-                    <span className="risk-meter-score" style={{ color: r.color }}>{r.score}/100</span>
+                    <span className="risk-meter-label">{score.label}</span>
+                    <span className="risk-meter-score" style={{ color: score.color }}>{score.score}/100</span>
                   </div>
                   <div className="risk-bar-bg">
-                    <div className="risk-bar-fill" style={{ width: `${r.score}%`, background: r.color }} />
+                    <div className="risk-bar-fill" style={{ width: `${score.score}%`, background: score.color }} />
                   </div>
                 </div>
               ))}
@@ -223,37 +433,11 @@ export default function Analytics({ portfolio }) {
         </div>
       )}
 
-      {/* AI Insights Tab */}
       {activeTab === 'insights' && (
         <div className="insights-grid">
-          {[
-            {
-              emoji: '🚀',
-              title: 'Growth Opportunity',
-              insight: 'Your IT sector allocation is performing above market average. Consider increasing exposure to TCS and Infosys for stronger returns.',
-              type: 'positive'
-            },
-            {
-              emoji: '⚠️',
-              title: 'Risk Alert',
-              insight: 'High concentration in Banking sector (28%). Consider diversifying into Healthcare or Consumer Goods to balance risk.',
-              type: 'warning'
-            },
-            {
-              emoji: '💡',
-              title: 'Rebalancing Suggestion',
-              insight: 'Your portfolio has grown 12.4% this quarter. Consider taking partial profits from high-return positions and reinvesting in undervalued sectors.',
-              type: 'info'
-            },
-            {
-              emoji: '📉',
-              title: 'Market Trend',
-              insight: 'Nifty 50 IT sector is showing bullish momentum. Your current holdings are well-positioned for the upcoming earnings season.',
-              type: 'positive'
-            },
-          ].map((insight, i) => (
-            <div key={i} className={`insight-card ${insight.type}`}>
-              <div className="insight-emoji">{insight.emoji}</div>
+          {insights.map((insight) => (
+            <div key={insight.title} className={`insight-card ${insight.type}`}>
+              <div className="insight-emoji">AI</div>
               <div>
                 <h4 className="insight-title">{insight.title}</h4>
                 <p className="insight-text">{insight.insight}</p>

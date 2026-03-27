@@ -1452,13 +1452,12 @@ select:focus-visible {
 
 /* ===== ANALYTICS PAGE ===== */
 .analytics-page {
-  min-height: 100vh;
-  padding: 28px;
-  background: var(--navy);
+  min-height: 100%;
+  padding: 0;
+  background: transparent;
   display: flex;
   flex-direction: column;
   gap: 18px;
-  overflow-y: auto;
 }
 
 .analytics-header {

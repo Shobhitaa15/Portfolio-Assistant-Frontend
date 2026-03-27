@@ -86,7 +86,7 @@ function Portfolio({ userId, onBack, setPortfolio }) {
         })
       })
       const data = await response.json()
-      if (data.success) { setSaved(true); setPortfolio(holdings); setTimeout(() => onBack(), 1500) }
+      if (data.success) { setSaved(true); setPortfolio(data.portfolio || holdings); setTimeout(() => onBack(), 1500) }
       else setError(data.error)
     } catch {
       setError('Failed to save. Please try again.')
