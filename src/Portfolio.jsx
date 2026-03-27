@@ -1,9 +1,51 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import { apiUrl } from './api'
 
 const SECTORS = ['Fintech', 'Healthcare', 'Clean Energy', 'Edtech', 'Retail Tech', 'SaaS', 'Real Estate', 'Manufacturing', 'Other']
 
 const emptyHolding = { company: '', sector: '', entryPrice: '', currentValue: '' }
+
+const normalizeAmount = (value) => {
+  if (value === null || value === undefined || value === '') return ''
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value)
+
+  const cleaned = String(value).replace(/[^\d.-]/g, '')
+  const parsed = Number.parseFloat(cleaned)
+  return Number.isFinite(parsed) ? String(parsed) : ''
+}
+
+const normalizeHolding = (holding = {}) => ({
+  company: String(holding.company ?? holding.name ?? holding.stock ?? holding.symbol ?? holding.ticker ?? '').trim(),
+  sector: String(holding.sector ?? holding.category ?? holding.industry ?? '').trim() || 'Other',
+  entryPrice: normalizeAmount(
+    holding.entryPrice
+    ?? holding.entry_price
+    ?? holding.buyPrice
+    ?? holding.buy_price
+    ?? holding.purchasePrice
+    ?? holding.costPrice
+    ?? holding.avgBuyPrice
+  ),
+  currentValue: normalizeAmount(
+    holding.currentValue
+    ?? holding.current_value
+    ?? holding.marketValue
+    ?? holding.market_value
+    ?? holding.currentPrice
+    ?? holding.current_price
+    ?? holding.ltp
+    ?? holding.lastPrice
+  ),
+})
+
+const getHoldingsFromJson = (data) => {
+  if (Array.isArray(data)) return data
+  if (Array.isArray(data?.holdings)) return data.holdings
+  if (Array.isArray(data?.portfolio?.holdings)) return data.portfolio.holdings
+  if (Array.isArray(data?.data?.holdings)) return data.data.holdings
+  if (Array.isArray(data?.positions)) return data.positions
+  return []
+}
 
 function Portfolio({ userId, onBack, setPortfolio }) {
   const [tab, setTab] = useState('manual')
@@ -34,46 +76,74 @@ function Portfolio({ userId, onBack, setPortfolio }) {
   const handleCSV = (e) => {
     const file = e.target.files[0]
     if (!file) return
+
+    setError('')
     const reader = new FileReader()
     reader.onload = (ev) => {
-      const lines = ev.target.result.split('\n').filter(Boolean)
-      const rows = lines.slice(1).map(line => {
+      const lines = String(ev.target.result || '')
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean)
+
+      const rows = lines.slice(1).map((line) => {
         const [company, sector, entryPrice, currentValue] = line.split(',')
-        return { company: company?.trim(), sector: sector?.trim(), entryPrice: entryPrice?.trim(), currentValue: currentValue?.trim() }
-      }).filter(r => r.company)
-      if (rows.length) {
-        setHoldings(rows)
-        scrollToBottom()
+        return {
+          company: company?.trim() || '',
+          sector: sector?.trim() || '',
+          entryPrice: normalizeAmount(entryPrice?.trim()),
+          currentValue: normalizeAmount(currentValue?.trim()),
+        }
+      }).filter((row) => row.company && row.sector && row.entryPrice && row.currentValue)
+
+      if (!rows.length) {
+        setError('No valid rows found in CSV.')
+        return
       }
+
+      setHoldings(rows)
+      scrollToBottom()
     }
     reader.readAsText(file)
+    e.target.value = ''
   }
 
   const handleJSON = (e) => {
     const file = e.target.files[0]
     if (!file) return
+
+    setError('')
     const reader = new FileReader()
     reader.onload = (ev) => {
       try {
-        const data = JSON.parse(ev.target.result)
-        const rows = Array.isArray(data) ? data : data.holdings || []
-        setHoldings(rows.map(r => ({
-          company: r.company || '',
-          sector: r.sector || '',
-          entryPrice: r.entryPrice || r.entry_price || '',
-          currentValue: r.currentValue || r.current_value || ''
-        })))
+        const raw = String(ev.target.result || '').replace(/^\uFEFF/, '').trim()
+        const data = JSON.parse(raw)
+
+        const rows = getHoldingsFromJson(data)
+          .map(normalizeHolding)
+          .filter((row) => row.company && row.entryPrice && row.currentValue)
+
+        if (!rows.length) {
+          setError('No valid holdings found. Use keys: company, sector, entryPrice, currentValue.')
+          return
+        }
+
+        setHoldings(rows)
         scrollToBottom()
       } catch {
         setError('Invalid JSON format')
       }
     }
     reader.readAsText(file)
+    e.target.value = ''
   }
 
   const savePortfolio = async () => {
-    const valid = holdings.every(h => h.company && h.sector && h.entryPrice && h.currentValue)
-    if (!valid) { setError('Please fill in all fields for each holding'); return }
+    const valid = holdings.every((h) => h.company && h.sector && h.entryPrice && h.currentValue)
+    if (!valid) {
+      setError('Please fill in all fields for each holding')
+      return
+    }
+
     setSaving(true)
     setError('')
     try {
@@ -82,12 +152,22 @@ function Portfolio({ userId, onBack, setPortfolio }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId,
-          holdings: holdings.map(h => ({ ...h, entryPrice: parseFloat(h.entryPrice), currentValue: parseFloat(h.currentValue) }))
-        })
+          holdings: holdings.map((h) => ({
+            ...h,
+            entryPrice: Number.parseFloat(h.entryPrice),
+            currentValue: Number.parseFloat(h.currentValue),
+          })),
+        }),
       })
+
       const data = await response.json()
-      if (data.success) { setSaved(true); setPortfolio(data.portfolio || holdings); setTimeout(() => onBack(), 1500) }
-      else setError(data.error)
+      if (data.success) {
+        setSaved(true)
+        setPortfolio(data.portfolio || holdings)
+        setTimeout(() => onBack(), 1500)
+      } else {
+        setError(data.error || 'Failed to save portfolio')
+      }
     } catch {
       setError('Failed to save. Please try again.')
     }
@@ -104,13 +184,12 @@ function Portfolio({ userId, onBack, setPortfolio }) {
         </div>
       </div>
 
-      {/* Tabs */}
       <div className="upload-tabs">
         {[
           { key: 'manual', label: '✏️ Manual Entry' },
-          { key: 'csv',    label: '📄 CSV Upload' },
-          { key: 'json',   label: '📦 JSON Upload' },
-        ].map(t => (
+          { key: 'csv', label: '📄 CSV Upload' },
+          { key: 'json', label: '📦 JSON Upload' },
+        ].map((t) => (
           <button
             key={t.key}
             className={`upload-tab ${tab === t.key ? 'active' : ''}`}
@@ -121,7 +200,6 @@ function Portfolio({ userId, onBack, setPortfolio }) {
         ))}
       </div>
 
-      {/* CSV Upload */}
       {tab === 'csv' && (
         <div className="upload-zone">
           <div className="upload-icon">📄</div>
@@ -137,56 +215,55 @@ function Portfolio({ userId, onBack, setPortfolio }) {
         </div>
       )}
 
-      {/* JSON Upload */}
       {tab === 'json' && (
         <div className="upload-zone">
           <div className="upload-icon">📦</div>
           <p className="upload-title">Upload JSON File</p>
-          <p className="upload-hint">Array of objects with company, sector, entryPrice, currentValue</p>
+          <p className="upload-hint">Supports [{'{...}'}], {'{ holdings: [...] }'}, and {'{ portfolio: { holdings: [...] } }'}</p>
           <label className="upload-btn">
             Choose File
-            <input type="file" accept=".json" onChange={handleJSON} hidden />
+            <input type="file" accept=".json,application/json" onChange={handleJSON} hidden />
           </label>
         </div>
       )}
 
-      {/* Holdings table - shown for all tabs */}
       {holdings.length > 0 && (
         <div className="holdings-table">
           <div className="table-header">
             <span>🏢 Company</span>
             <span>🏭 Sector</span>
-            <span>💵 Entry Price ($)</span>
-            <span>📈 Current Value ($)</span>
+            <span>💵 Entry Price (₹)</span>
+            <span>📈 Current Value (₹)</span>
             <span>📊 Return</span>
             <span></span>
           </div>
           {holdings.map((h, i) => {
             const ret = h.entryPrice && h.currentValue
-              ? (((parseFloat(h.currentValue) - parseFloat(h.entryPrice)) / parseFloat(h.entryPrice)) * 100).toFixed(1)
+              ? (((Number.parseFloat(h.currentValue) - Number.parseFloat(h.entryPrice)) / Number.parseFloat(h.entryPrice)) * 100).toFixed(1)
               : null
+
             return (
               <div key={i} className="table-row">
                 <input
                   placeholder="e.g. GreenTech Solar"
                   value={h.company}
-                  onChange={e => updateHolding(i, 'company', e.target.value)}
+                  onChange={(ev) => updateHolding(i, 'company', ev.target.value)}
                 />
-                <select value={h.sector} onChange={e => updateHolding(i, 'sector', e.target.value)}>
+                <select value={h.sector} onChange={(ev) => updateHolding(i, 'sector', ev.target.value)}>
                   <option value="">Select sector</option>
-                  {SECTORS.map(s => <option key={s} value={s}>{s}</option>)}
+                  {SECTORS.map((sector) => <option key={sector} value={sector}>{sector}</option>)}
                 </select>
                 <input
                   type="number"
                   placeholder="10000"
                   value={h.entryPrice}
-                  onChange={e => updateHolding(i, 'entryPrice', e.target.value)}
+                  onChange={(ev) => updateHolding(i, 'entryPrice', ev.target.value)}
                 />
                 <input
                   type="number"
                   placeholder="13500"
                   value={h.currentValue}
-                  onChange={e => updateHolding(i, 'currentValue', e.target.value)}
+                  onChange={(ev) => updateHolding(i, 'currentValue', ev.target.value)}
                 />
                 <span className={`return-badge ${ret > 0 ? 'positive' : ret < 0 ? 'negative' : ''}`}>
                   {ret !== null ? `${ret > 0 ? '↑' : '↓'} ${Math.abs(ret)}%` : '—'}
@@ -199,7 +276,6 @@ function Portfolio({ userId, onBack, setPortfolio }) {
       )}
 
       {error && <p className="upload-error">⚠️ {error}</p>}
-
       {saved && <p className="upload-success">✅ Portfolio saved! Redirecting to dashboard...</p>}
 
       <div className="portfolio-actions">
