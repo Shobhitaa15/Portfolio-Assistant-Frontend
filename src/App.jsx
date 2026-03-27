@@ -201,6 +201,23 @@ function App({ user, onLogout, onUserUpdate }) {
 
   const totalValue = portfolioData?.totalValue || 124500
   const avgReturn = portfolioData?.avgReturn || 2.4
+  const portfolioFitScore = (() => {
+    const overallScore = toNumber(portfolioData?.overallFitScore)
+    if (overallScore > 0) return Number(overallScore.toFixed(1))
+
+    const holdingScores = Array.isArray(portfolioData?.holdings)
+      ? portfolioData.holdings
+        .map((holding) => toNumber(holding?.fitScore?.score))
+        .filter((score) => score > 0)
+      : []
+
+    if (holdingScores.length > 0) {
+      return Number((holdingScores.reduce((sum, score) => sum + score, 0) / holdingScores.length).toFixed(1))
+    }
+
+    return 94.2
+  })()
+  const fitTopPercent = Math.max(1, Math.min(35, Math.round((100 - portfolioFitScore) / 2)))
   const marketSectors = ['All', ...Array.from(new Set([marketSector, ...marketRows.map((row) => row.sector).filter(Boolean)])).filter(Boolean).sort()]
   const vaultProtectionText = vaultSettings
     ? `${vaultSettings.autoReserve ? 'Reserve automation active' : 'Reserve automation inactive'}. Emergency buffer ${vaultSettings.emergencyBufferPercent || 12}% with max exposure ${vaultSettings.maxSingleExposure || 28}%.`
@@ -405,14 +422,14 @@ function App({ user, onLogout, onUserUpdate }) {
     <div className="shell-card">
       <p className="shell-card-label">PORTFOLIO FIT SCORE</p>
       <div className="shell-card-header-row">
-        <h2 className="shell-fit-score">94.2</h2>
+        <h2 className="shell-fit-score">{portfolioFitScore}</h2>
         <div className="shell-verified">🏅</div>
       </div>
       <div className="shell-score-bar-bg">
-        <div className="shell-score-bar" style={{ width: '94.2%' }} />
+        <div className="shell-score-bar" style={{ width: `${portfolioFitScore}%` }} />
       </div>
       <p className="shell-card-sub">
-        Optimization level is currently in the <span className="gold-text">top 5%</span> of peer benchmarks.
+        Optimization level is currently in the <span className="gold-text">top {fitTopPercent}%</span> of peer benchmarks.
       </p>
     </div>
 

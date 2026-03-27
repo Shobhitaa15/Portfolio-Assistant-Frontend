@@ -276,7 +276,7 @@ function Portfolio({ userId, onBack, setPortfolio }) {
       )}
 
       {error && <p className="upload-error">⚠️ {error}</p>}
-      {saved && <p className="upload-success">✅ Portfolio saved! Redirecting to dashboard...</p>}
+      {saved && <p className="upload-success">✅ Portfolio saved and scored! Redirecting to dashboard...</p>}
 
       <div className="portfolio-actions">
         <button className="add-row-btn" onClick={addRow}>＋ Add Row</button>
