@@ -51,9 +51,9 @@ function App({ user, onLogout, onUserUpdate }) {
   const [portfolioData, setPortfolioData] = useState(null)
   const [vaultSettings, setVaultSettings] = useState(null)
   const [recentActivity] = useState([
-    { icon: 'ðŸ“ˆ', name: 'TCS Buy Order', sub: 'Tata Consultancy Â· IT Equity', status: 'SETTLED', date: 'Mar 15, 2026', impact: '+â‚¹12,400', growth: '+4.2% GROWTH', positive: true },
-    { icon: 'ðŸ’°', name: 'Quarterly Dividend', sub: 'HDFC Bank Â· Banking', status: 'PENDING', date: 'Mar 12, 2026', impact: '+â‚¹3,120', growth: 'AUTO-INVESTED', positive: true },
-    { icon: 'ðŸ·ï¸', name: 'Tata Motors Sell', sub: 'Tata Motors Â· Automotive', status: 'SETTLED', date: 'Mar 10, 2026', impact: '-â‚¹8,500', growth: '-1.1% EXIT', positive: false },
+    { icon: '📈', name: 'TCS Buy Order', sub: 'Tata Consultancy · IT Equity', status: 'SETTLED', date: 'Mar 15, 2026', impact: '+₹12,400', growth: '+4.2% GROWTH', positive: true },
+    { icon: '💰', name: 'Quarterly Dividend', sub: 'HDFC Bank · Banking', status: 'PENDING', date: 'Mar 12, 2026', impact: '+₹3,120', growth: 'AUTO-INVESTED', positive: true },
+    { icon: '🏷️', name: 'Tata Motors Sell', sub: 'Tata Motors · Automotive', status: 'SETTLED', date: 'Mar 10, 2026', impact: '-₹8,500', growth: '-1.1% EXIT', positive: false },
   ])
 
   const [marketRows, setMarketRows] = useState([])
@@ -214,7 +214,7 @@ function App({ user, onLogout, onUserUpdate }) {
       {/* Sidebar */}
       <aside className="shell-sidebar">
         <div className="shell-logo">
-          <div className="shell-logo-icon">âš–ï¸</div>
+          <div className="shell-logo-icon">⚖️</div>
           <div>
             <div className="shell-logo-name">PROFITLY</div>
             <div className="shell-logo-sub">SOVEREIGN LEDGER</div>
@@ -223,11 +223,11 @@ function App({ user, onLogout, onUserUpdate }) {
 
         <nav className="shell-nav">
           {[
-            { icon: 'â–¦', label: 'Dashboard' },
-            { icon: 'ðŸ’¼', label: 'Portfolio' },
-            { icon: 'ðŸ“Š', label: 'Markets' },
-            { icon: 'ðŸ“‰', label: 'Analytics' },
-            { icon: 'ðŸ”’', label: 'Vault' },
+            { icon: '🧭', label: 'Dashboard' },
+            { icon: '💼', label: 'Portfolio' },
+            { icon: '📊', label: 'Markets' },
+            { icon: '📉', label: 'Analytics' },
+            { icon: '🔒', label: 'Vault' },
           ].map(item => (
             <button
               key={item.label}
@@ -249,10 +249,10 @@ function App({ user, onLogout, onUserUpdate }) {
 
         <div className="shell-sidebar-bottom">
           <button className="shell-nav-item" onClick={() => setActiveNav('Settings')}>
-            <span className="shell-nav-icon">âš™ï¸</span> Settings
+            <span className="shell-nav-icon">⚙️</span> Settings
           </button>
           <button className="shell-nav-item" onClick={onLogout}>
-            <span className="shell-nav-icon">ðŸšª</span> Logout
+            <span className="shell-nav-icon">🚪</span> Logout
           </button>
         </div>
       </aside>
@@ -262,7 +262,7 @@ function App({ user, onLogout, onUserUpdate }) {
         {/* Top bar */}
         <header className="shell-topbar">
           <div className="shell-search">
-            <span>ðŸ”</span>
+            <span>🔍</span>
             <input
               value={activeNav === 'Markets' ? marketSearch : searchInput}
               onChange={(e) => {
@@ -344,8 +344,8 @@ function App({ user, onLogout, onUserUpdate }) {
                       <span className="markets-ticker">{row.ticker}</span>
                       <span className="markets-company">{row.company}</span>
                       <span>{row.sector || 'N/A'}</span>
-                      <span>â‚¹{Number(row.latestClose || 0).toLocaleString('en-IN')}</span>
-                      <span>â‚¹{Number(row.lowPrice || 0).toLocaleString('en-IN')} - â‚¹{Number(row.highPrice || 0).toLocaleString('en-IN')}</span>
+                      <span>₹{Number(row.latestClose || 0).toLocaleString('en-IN')}</span>
+                      <span>₹{Number(row.lowPrice || 0).toLocaleString('en-IN')} - ₹{Number(row.highPrice || 0).toLocaleString('en-IN')}</span>
                       <span>{Number(row.volume || 0).toLocaleString('en-IN')}</span>
                       <span className={Number(row.returnPercent) >= 0 ? 'markets-positive' : 'markets-negative'}>
                         {Number(row.returnPercent) >= 0 ? '+' : ''}{Number(row.returnPercent || 0).toFixed(2)}%
@@ -388,25 +388,25 @@ function App({ user, onLogout, onUserUpdate }) {
             <div className="shell-wealth">
               <p className="shell-wealth-label">AGGREGATE WEALTH</p>
               <p className="shell-wealth-value">
-                â‚¹{totalValue.toLocaleString('en-IN')}
+                ₹{totalValue.toLocaleString('en-IN')}
                 <span className="shell-wealth-decimal">.00</span>
               </p>
               <p className="shell-wealth-change">
-                ðŸ“ˆ +â‚¹{Math.round(totalValue * 0.024).toLocaleString('en-IN')} ({avgReturn}%)
+                📈 +₹{Math.round(totalValue * 0.024).toLocaleString('en-IN')} ({avgReturn}%)
               </p>
             </div>
           </div>
 
 {/* Middle cards row */}
 <div className="shell-cards-row">
-  {/* Left column â€” stats */}
+  {/* Left column - stats */}
   <div className="shell-left-col">
     {/* Fit Score card */}
     <div className="shell-card">
       <p className="shell-card-label">PORTFOLIO FIT SCORE</p>
       <div className="shell-card-header-row">
         <h2 className="shell-fit-score">94.2</h2>
-        <div className="shell-verified">ðŸ…</div>
+        <div className="shell-verified">🏅</div>
       </div>
       <div className="shell-score-bar-bg">
         <div className="shell-score-bar" style={{ width: '94.2%' }} />
@@ -420,7 +420,7 @@ function App({ user, onLogout, onUserUpdate }) {
     <div className="shell-card">
       <p className="shell-card-label">PROJECTED ANNUAL YIELD</p>
       <h3 className="shell-yield-value">
-        â‚¹{Math.round(totalValue * 0.1).toLocaleString('en-IN')}
+        ₹{Math.round(totalValue * 0.1).toLocaleString('en-IN')}
         <span className="shell-yield-change"> +0.8%</span>
       </h3>
       <div className="shell-quick-btns" style={{marginTop: '12px'}}>
@@ -435,12 +435,12 @@ function App({ user, onLogout, onUserUpdate }) {
 
     {/* Market Alerts */}
     <div className="shell-card">
-      <p className="shell-card-label">MARKET ALERT ðŸ””</p>
+      <p className="shell-card-label">MARKET ALERT 🔔</p>
       <p className="shell-alert-text">Nifty 50 is up 1.2% today. IT sector showing strong momentum. Consider increasing tech exposure.</p>
     </div>
   </div>
 
-  {/* Center â€” AI + Chat unified */}
+  {/* Center - AI + Chat unified */}
   <div className="shell-card shell-card-dark shell-ai-chat">
     <div className="shell-insight-header">
       <div className="shell-ai-badge">AI</div>
@@ -456,7 +456,7 @@ function App({ user, onLogout, onUserUpdate }) {
     <div className="shell-chat-messages">
       {messages.length === 0 && (
         <div className="shell-empty-chat">
-          <p>ðŸ¤– Ask me anything about your investments, risk levels, or market opportunities.</p>
+          <p>🤖 Ask me anything about your investments, risk levels, or market opportunities.</p>
         </div>
       )}
       {messages.map((msg, i) => (
@@ -469,7 +469,7 @@ function App({ user, onLogout, onUserUpdate }) {
             <div key={j} className="shell-inline-stock">
               <div>
                 <span className="shell-stock-name">{o.company}</span>
-                <span className="shell-stock-meta"> Â· {o.sector} Â· â‚¹{o.latestClose}</span>
+                <span className="shell-stock-meta"> · {o.sector} · ₹{o.latestClose}</span>
               </div>
               <span className="shell-stock-score">{o.fitScore?.score}/100</span>
             </div>
@@ -495,32 +495,32 @@ function App({ user, onLogout, onUserUpdate }) {
 
     {/* Chat input */}
     <div className="shell-chat-input-wrap">
-      <span>ðŸ’¬</span>
+      <span>💬</span>
       <input
         value={input}
         onChange={e => setInput(e.target.value)}
         onKeyPress={e => e.key === 'Enter' && sendMessage()}
         placeholder="Ask Profitly AI about your investments..."
       />
-      <button className="shell-send" onClick={() => sendMessage()}>â†’</button>
+      <button className="shell-send" onClick={() => sendMessage()}>→</button>
     </div>
 
     {/* Quick asks */}
     <div className="shell-quick-asks">
-      {['ðŸ“Š Analyze my portfolio', 'âš ï¸ Check risk levels', 'ðŸ’¡ Best opportunities', 'ðŸ“ˆ Top IT stocks'].map((q, i) => (
+      {['📊 Analyze my portfolio', '⚠️ Check risk levels', '💡 Best opportunities', '📈 Top IT stocks'].map((q, i) => (
         <button key={i} className="shell-quick-ask" onClick={() => sendMessage(q)}>{q}</button>
       ))}
     </div>
 
     <button className="shell-rebalance-btn" onClick={() => sendMessage('Should I rebalance my portfolio?')}>
-      Execute Rebalance â†’
+      Execute Rebalance →
     </button>
   </div>
 
-  {/* Right â€” Vault Protection */}
+  {/* Right - Vault Protection */}
   <div className="shell-right-col">
     <div className="shell-card">
-      <p className="shell-card-label">VAULT PROTECTION ðŸ”’</p>
+      <p className="shell-card-label">VAULT PROTECTION 🔒</p>
       <p className="shell-alert-text">{vaultProtectionText}</p>
       <p className="shell-alert-text" style={{ marginTop: '8px' }}>{vaultLockText}</p>
     </div>
@@ -545,7 +545,7 @@ function App({ user, onLogout, onUserUpdate }) {
       </div>
     </div>
     <div className="shell-card">
-      <p className="shell-card-label">SECTORS ðŸ“Š</p>
+      <p className="shell-card-label">SECTORS 📊</p>
       {portfolioData?.holdings ? (
         [...new Set(portfolioData.holdings.map(h => h.sector))].map((s, i) => (
           <div key={i} className="shell-sector-item">
