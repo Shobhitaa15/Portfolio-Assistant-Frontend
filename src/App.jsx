@@ -40,7 +40,7 @@ const summarizePortfolio = (holdings = []) => {
   }
 }
 
-function App({ user, onLogout, onUserUpdate }) {
+function App({ user, onLogout, onUserUpdate, theme = 'light', onToggleTheme }) {
   const [currentUser, setCurrentUser] = useState(user)
   const [activeNav, setActiveNav] = useState('Dashboard')
   const [showPortfolio, setShowPortfolio] = useState(false)
@@ -146,8 +146,12 @@ function App({ user, onLogout, onUserUpdate }) {
   }, [loadVaultSettings])
 
   const sendMessage = async (text) => {
-    const messageText = text || input
-    if (!messageText.trim()) return
+    const messageText = (text || input).trim()
+    if (!messageText || loading) return
+
+    const nextSessionHistory = [...messages, { role: 'user', content: messageText }]
+      .map((msg) => ({ role: msg.role, content: msg.content }))
+
     setMessages(prev => [...prev, { role: 'user', content: messageText }])
     setInput('')
     setLoading(true)
@@ -157,26 +161,35 @@ function App({ user, onLogout, onUserUpdate }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: messageText,
-          sessionHistory: messages.map(m => ({ role: m.role, content: m.content })),
+          sessionHistory: nextSessionHistory,
           userId: currentUser?.id || 'demo'
         })
       })
       const data = await response.json()
+      if (!response.ok || data.error) throw new Error(data.error || 'Unable to get AI response')
+
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: data.message,
-        offerings: data.offerings,
-        suggestions: data.suggestions
+        content: data.message || 'I could not generate a response right now. Please try again.',
+        offerings: Array.isArray(data.offerings) ? data.offerings : [],
+        suggestions: Array.isArray(data.suggestions) ? data.suggestions : []
       }])
     } catch (error) {
       console.log('Error:', error)
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: 'I could not reach Profitly AI right now. Please try again in a moment.'
+      }])
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   if (showPortfolio) return (
     <Portfolio
       userId={currentUser?.id || 'demo'}
+      theme={theme}
+      onToggleTheme={onToggleTheme}
       setPortfolio={(nextPortfolio) => {
         if (Array.isArray(nextPortfolio)) {
           setPortfolioData((prev) => ({ ...(prev || {}), ...summarizePortfolio(nextPortfolio) }))
@@ -298,6 +311,14 @@ function App({ user, onLogout, onUserUpdate }) {
             ))}
             <button className="shell-deposit-btn">Deposit</button>
           </nav>
+          <button
+            className="theme-toggle-btn"
+            onClick={onToggleTheme}
+            aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          >
+            {theme === 'dark' ? '☀️ Light' : '🌙 Dark'}
+          </button>
           <div className="shell-user">
             <div className="shell-user-info">
               <span className="shell-user-name">{firstName}</span>

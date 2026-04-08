@@ -1,4 +1,4 @@
-﻿import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { apiUrl } from './api'
 
 const SECTORS = ['Fintech', 'Healthcare', 'Clean Energy', 'Edtech', 'Retail Tech', 'SaaS', 'Real Estate', 'Manufacturing', 'Other']
@@ -15,7 +15,14 @@ const normalizeAmount = (value) => {
 }
 
 const normalizeHolding = (holding = {}) => ({
-  company: String(holding.company ?? holding.name ?? holding.stock ?? holding.symbol ?? holding.ticker ?? '').trim(),
+  company: String(
+    holding.company
+    ?? holding.name
+    ?? holding.stock
+    ?? holding.symbol
+    ?? holding.ticker
+    ?? ''
+  ).trim(),
   sector: String(holding.sector ?? holding.category ?? holding.industry ?? '').trim() || 'Other',
   entryPrice: normalizeAmount(
     holding.entryPrice
@@ -25,6 +32,8 @@ const normalizeHolding = (holding = {}) => ({
     ?? holding.purchasePrice
     ?? holding.costPrice
     ?? holding.avgBuyPrice
+    ?? holding.avg_price
+    ?? holding.averagePrice
   ),
   currentValue: normalizeAmount(
     holding.currentValue
@@ -35,6 +44,7 @@ const normalizeHolding = (holding = {}) => ({
     ?? holding.current_price
     ?? holding.ltp
     ?? holding.lastPrice
+    ?? holding.price
   ),
 })
 
@@ -47,8 +57,11 @@ const getHoldingsFromJson = (data) => {
   return []
 }
 
-function Portfolio({ userId, onBack, setPortfolio }) {
+function Portfolio({ userId, onBack, setPortfolio, theme = 'light', onToggleTheme }) {
+  const pageRef = useRef(null)
+  const quickJsonInputRef = useRef(null)
   const [tab, setTab] = useState('manual')
+  const [jsonUploaded, setJsonUploaded] = useState(false)
   const [holdings, setHoldings] = useState([{ ...emptyHolding }])
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -67,8 +80,18 @@ function Portfolio({ userId, onBack, setPortfolio }) {
     setHoldings(holdings.filter((_, i) => i !== index))
   }
 
-  const scrollToBottom = () => {
+  const scrollToHoldings = () => {
     window.requestAnimationFrame(() => {
+      const table = pageRef.current?.querySelector('.holdings-table')
+      if (table) {
+        table.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        return
+      }
+      const container = pageRef.current
+      if (container && container.scrollHeight > container.clientHeight) {
+        container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' })
+        return
+      }
       window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' })
     })
   }
@@ -100,8 +123,9 @@ function Portfolio({ userId, onBack, setPortfolio }) {
         return
       }
 
+      setJsonUploaded(false)
       setHoldings(rows)
-      scrollToBottom()
+      scrollToHoldings()
     }
     reader.readAsText(file)
     e.target.value = ''
@@ -120,15 +144,16 @@ function Portfolio({ userId, onBack, setPortfolio }) {
 
         const rows = getHoldingsFromJson(data)
           .map(normalizeHolding)
-          .filter((row) => row.company && row.entryPrice && row.currentValue)
+          .filter((row) => row.company)
 
         if (!rows.length) {
-          setError('No valid holdings found. Use keys: company, sector, entryPrice, currentValue.')
+          setError('No holdings found. Include at least company/name/symbol/ticker for each row.')
           return
         }
 
+        setJsonUploaded(true)
         setHoldings(rows)
-        scrollToBottom()
+        scrollToHoldings()
       } catch {
         setError('Invalid JSON format')
       }
@@ -175,32 +200,63 @@ function Portfolio({ userId, onBack, setPortfolio }) {
   }
 
   return (
-    <div className="portfolio-page">
+    <div className="portfolio-page" ref={pageRef}>
       <div className="portfolio-header">
-        <button className="back-btn" onClick={onBack}>← Back</button>
-        <div>
-          <h2 className="portfolio-title">💼 My Portfolio</h2>
-          <p className="portfolio-sub">Upload your holdings for personalized AI analysis</p>
+        <div className="portfolio-header-main">
+          <button className="back-btn" onClick={onBack}>← Back</button>
+          <div>
+            <h2 className="portfolio-title">💼 My Portfolio</h2>
+            <p className="portfolio-sub">Upload your holdings for personalized AI analysis</p>
+          </div>
+        </div>
+        <div className="portfolio-header-actions">
+          {jsonUploaded && (
+            <>
+              <input
+                ref={quickJsonInputRef}
+                type="file"
+                accept=".json,application/json"
+                onChange={handleJSON}
+                hidden
+              />
+              <button
+                className="quick-json-btn"
+                onClick={() => quickJsonInputRef.current?.click()}
+              >
+                + JSON Upload
+              </button>
+            </>
+          )}
+          <button
+            className="theme-toggle-btn"
+            onClick={onToggleTheme}
+            aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          >
+            {theme === 'dark' ? '☀️ Light' : '🌙 Dark'}
+          </button>
         </div>
       </div>
 
-      <div className="upload-tabs">
-        {[
-          { key: 'manual', label: '✏️ Manual Entry' },
-          { key: 'csv', label: '📄 CSV Upload' },
-          { key: 'json', label: '📦 JSON Upload' },
-        ].map((t) => (
-          <button
-            key={t.key}
-            className={`upload-tab ${tab === t.key ? 'active' : ''}`}
-            onClick={() => setTab(t.key)}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+      {!jsonUploaded && (
+        <div className="upload-tabs">
+          {[
+            { key: 'manual', label: '✏️ Manual Entry' },
+            { key: 'csv', label: '📄 CSV Upload' },
+            { key: 'json', label: '📦 JSON Upload' },
+          ].map((t) => (
+            <button
+              key={t.key}
+              className={`upload-tab ${tab === t.key ? 'active' : ''}`}
+              onClick={() => setTab(t.key)}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      )}
 
-      {tab === 'csv' && (
+      {!jsonUploaded && tab === 'csv' && (
         <div className="upload-zone">
           <div className="upload-icon">📄</div>
           <p className="upload-title">Upload CSV File</p>
@@ -215,7 +271,7 @@ function Portfolio({ userId, onBack, setPortfolio }) {
         </div>
       )}
 
-      {tab === 'json' && (
+      {!jsonUploaded && tab === 'json' && (
         <div className="upload-zone">
           <div className="upload-icon">📦</div>
           <p className="upload-title">Upload JSON File</p>
@@ -289,3 +345,5 @@ function Portfolio({ userId, onBack, setPortfolio }) {
 }
 
 export default Portfolio
+
+

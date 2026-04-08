@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { apiUrl } from './api'
 
-export default function Auth({ onLogin }) {
+export default function Auth({ onLogin, theme = 'light', onToggleTheme }) {
   const [isRegister, setIsRegister] = useState(false)
   const [form, setForm] = useState({ name: '', email: '', password: '' })
   const [error, setError] = useState('')
@@ -21,6 +21,7 @@ export default function Auth({ onLogin }) {
       setError('⚠️ Password must be at least 6 characters')
       return
     }
+
     setLoading(true)
     setError('')
     try {
@@ -28,8 +29,9 @@ export default function Auth({ onLogin }) {
       const response = await fetch(apiUrl(endpoint), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form)
+        body: JSON.stringify(form),
       })
+
       const data = await response.json()
       if (data.error) {
         setError(`⚠️ ${data.error}`)
@@ -46,60 +48,75 @@ export default function Auth({ onLogin }) {
 
   return (
     <div className="login-page">
-      {/* Left side — branding */}
+      <button
+        className="theme-toggle-btn auth-theme-toggle"
+        onClick={onToggleTheme}
+        aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+        title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+      >
+        {theme === 'dark' ? '☀️ Light' : '🌙 Dark'}
+      </button>
+
       <div className="login-left">
         <div className="login-brand">
           <div className="login-logo">PR</div>
           <h1 className="login-brand-name">Profitly</h1>
           <p className="login-brand-tag">Smart Investing, Simplified</p>
         </div>
+
         <div className="login-features">
           {[
             { emoji: '🤖', title: 'AI-Powered', desc: 'Qwen 2.5 AI analyzes your portfolio' },
             { emoji: '📊', title: 'Nifty 50 Data', desc: 'Real-time market insights' },
             { emoji: '🎯', title: 'Fit Score', desc: 'Personalized investment matching' },
             { emoji: '💎', title: 'Elite Analysis', desc: 'Professional grade recommendations' },
-          ].map((f, i) => (
-            <div key={i} className="login-feature">
-              <span className="login-feature-emoji">{f.emoji}</span>
+          ].map((feature, index) => (
+            <div key={index} className="login-feature">
+              <span className="login-feature-emoji">{feature.emoji}</span>
               <div>
-                <p className="login-feature-title">{f.title}</p>
-                <p className="login-feature-desc">{f.desc}</p>
+                <p className="login-feature-title">{feature.title}</p>
+                <p className="login-feature-desc">{feature.desc}</p>
               </div>
             </div>
           ))}
         </div>
+
         <div className="login-market-ticker">
-          {['TCS ↑2.3%', 'INFY ↑1.8%', 'WIPRO ↓0.4%', 'HDFC ↑3.1%', 'RELIANCE ↑1.2%'].map((t, i) => (
-            <span key={i} className="ticker-item">{t}</span>
+          {['TCS ↑2.3%', 'INFY ↑1.8%', 'WIPRO ↓0.4%', 'HDFC ↑3.1%', 'RELIANCE ↑1.2%'].map((ticker, index) => (
+            <span key={index} className="ticker-item">{ticker}</span>
           ))}
         </div>
       </div>
 
-      {/* Right side — form */}
       <div className="login-right">
         <div className="login-card">
           <div className="login-card-header">
             <div className="login-logo-sm">PR</div>
             <div>
-              <h2 className="login-title">
-                {isRegister ? 'Create Account' : 'Welcome Back'}
-              </h2>
-              <p className="login-sub">
-                {isRegister ? 'Join Profitly today' : 'Sign in to your portfolio'}
-              </p>
+              <h2 className="login-title">{isRegister ? 'Create Account' : 'Welcome Back'}</h2>
+              <p className="login-sub">{isRegister ? 'Join Profitly today' : 'Sign in to your portfolio'}</p>
             </div>
           </div>
 
           <div className="login-tabs">
             <button
               className={`login-tab ${!isRegister ? 'active' : ''}`}
-              onClick={() => { setIsRegister(false); setError('') }}
-            >Sign In</button>
+              onClick={() => {
+                setIsRegister(false)
+                setError('')
+              }}
+            >
+              Sign In
+            </button>
             <button
               className={`login-tab ${isRegister ? 'active' : ''}`}
-              onClick={() => { setIsRegister(true); setError('') }}
-            >Register</button>
+              onClick={() => {
+                setIsRegister(true)
+                setError('')
+              }}
+            >
+              Register
+            </button>
           </div>
 
           {isRegister && (
@@ -109,7 +126,7 @@ export default function Auth({ onLogin }) {
                 type="text"
                 placeholder="e.g. Rahul Sharma"
                 value={form.name}
-                onChange={e => setForm({ ...form, name: e.target.value })}
+                onChange={(event) => setForm({ ...form, name: event.target.value })}
               />
             </div>
           )}
@@ -120,7 +137,7 @@ export default function Auth({ onLogin }) {
               type="email"
               placeholder="you@example.com"
               value={form.email}
-              onChange={e => setForm({ ...form, email: e.target.value })}
+              onChange={(event) => setForm({ ...form, email: event.target.value })}
             />
           </div>
 
@@ -131,22 +148,14 @@ export default function Auth({ onLogin }) {
                 type={showPassword ? 'text' : 'password'}
                 placeholder="••••••••"
                 value={form.password}
-                onChange={e => setForm({ ...form, password: e.target.value })}
-                onKeyPress={e => e.key === 'Enter' && handleSubmit()}
+                onChange={(event) => setForm({ ...form, password: event.target.value })}
+                onKeyDown={(event) => event.key === 'Enter' && handleSubmit()}
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                style={{
-                  position: 'absolute',
-                  right: 10,
-                  top: 10,
-                  background: 'transparent',
-                  border: 'none',
-                  color: '#666',
-                  cursor: 'pointer',
-                  fontSize: 12
-                }}
+                className="auth-inline-action"
+                style={{ position: 'absolute', right: 10, top: 10 }}
               >
                 {showPassword ? 'Hide' : 'Show'}
               </button>
@@ -155,16 +164,7 @@ export default function Auth({ onLogin }) {
               <button
                 type="button"
                 onClick={() => alert('Please contact support to reset your password.')}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  color: '#666',
-                  cursor: 'pointer',
-                  fontSize: 12,
-                  textAlign: 'right',
-                  width: '100%',
-                  marginTop: 4
-                }}
+                className="auth-inline-action auth-forgot-link"
               >
                 Forgot Password?
               </button>
@@ -173,11 +173,7 @@ export default function Auth({ onLogin }) {
 
           {error && <div className="login-error">{error}</div>}
 
-          <button
-            className="login-submit"
-            onClick={handleSubmit}
-            disabled={loading}
-          >
+          <button className="login-submit" onClick={handleSubmit} disabled={loading}>
             {loading ? '⏳ Please wait...' : isRegister ? '🚀 Create Account' : '💎 Sign In'}
           </button>
 

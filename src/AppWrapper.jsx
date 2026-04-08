@@ -1,14 +1,27 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Auth from './Auth'
 import App from './App'
 import OnboardingModal from './OnboardingModal'
 
 export default function AppWrapper() {
+  const [theme, setTheme] = useState(() => {
+    const saved = localStorage.getItem('profitly_theme')
+    return saved === 'dark' ? 'dark' : 'light'
+  })
   const [user, setUser] = useState(() => {
     const saved = localStorage.getItem('user')
     return saved ? JSON.parse(saved) : null
   })
   const [showOnboarding, setShowOnboarding] = useState(false)
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme)
+    localStorage.setItem('profitly_theme', theme)
+  }, [theme])
+
+  const toggleTheme = () => {
+    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))
+  }
 
   const handleLogin = (userData) => {
     setUser(userData)
@@ -33,11 +46,17 @@ export default function AppWrapper() {
     localStorage.setItem('user', JSON.stringify(nextUser))
   }
 
-  if (!user) return <Auth onLogin={handleLogin} />
+  if (!user) return <Auth onLogin={handleLogin} theme={theme} onToggleTheme={toggleTheme} />
 
   return (
     <>
-      <App user={user} onLogout={handleLogout} onUserUpdate={handleUserUpdate} />
+      <App
+        user={user}
+        onLogout={handleLogout}
+        onUserUpdate={handleUserUpdate}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+      />
       {showOnboarding && (
         <OnboardingModal
           onComplete={handleOnboardingComplete}
