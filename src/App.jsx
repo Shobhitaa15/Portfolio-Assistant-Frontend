@@ -43,6 +43,7 @@ const summarizePortfolio = (holdings = []) => {
 const CHAT_STORAGE_LIMIT = 120
 const HISTORY_STORAGE_LIMIT = 120
 const RECENT_SEARCH_LIMIT = 12
+const PRICE_ALERT_LIMIT = 40
 
 const formatHistoryDate = (value = new Date()) => new Date(value).toLocaleDateString('en-US', {
   month: 'short',
@@ -53,6 +54,7 @@ const formatHistoryDate = (value = new Date()) => new Date(value).toLocaleDateSt
 const normalizeHistoryStatus = (status) => (String(status || '').toUpperCase() === 'SETTLED' ? 'SETTLED' : 'PENDING')
 const formatCurrency = (value = 0) => `₹${Math.round(toNumber(value)).toLocaleString('en-IN')}`
 const normalizeHoldingKey = (value = '') => String(value).trim().toLowerCase().replace(/[^a-z0-9]+/g, '-')
+const normalizeAlertCondition = (condition) => (String(condition || '').toLowerCase() === 'below' ? 'below' : 'above')
 const getHoldingKey = (holding = {}, fallback = '') => {
   const provided = String(holding.holdingKey || '').trim()
   if (provided) return normalizeHoldingKey(provided)
@@ -71,6 +73,87 @@ const normalizeRecentSearches = (entries = []) => {
     unique.push(clean)
   })
   return unique.slice(0, RECENT_SEARCH_LIMIT)
+}
+
+const normalizePriceAlerts = (rows = []) => {
+  if (!Array.isArray(rows)) return []
+  return rows
+    .filter(Boolean)
+    .map((row, index) => {
+      const stock = String(row.stock || row.ticker || row.company || '').trim()
+      const targetPrice = toNumber(row.targetPrice || row.price)
+      if (!stock || targetPrice <= 0) return null
+
+      const condition = normalizeAlertCondition(row.condition)
+      const normalizedStock = stock.toUpperCase()
+
+      return {
+        id: row.id || `alert-${normalizeHoldingKey(normalizedStock || `stock-${index + 1}`)}-${index}`,
+        stock: normalizedStock,
+        condition,
+        targetPrice: Number(targetPrice.toFixed(2)),
+        active: row.active !== false,
+        createdAt: row.createdAt || new Date().toISOString(),
+      }
+    })
+    .filter(Boolean)
+    .slice(0, PRICE_ALERT_LIMIT)
+}
+
+const getHoldingSignal = (holding = {}) => {
+  const company = String(holding.company || holding.ticker || 'Holding').trim()
+  const returnPct = toNumber(holding.returnPercentage)
+  const fitScore = toNumber(holding?.fitScore?.score)
+
+  if (returnPct <= -10 || (fitScore > 0 && fitScore < 45)) {
+    return {
+      company,
+      action: 'SELL / REVIEW',
+      reason: returnPct <= -10
+        ? `Down ${returnPct.toFixed(2)}%, check if thesis is still valid.`
+        : `Fit score ${fitScore.toFixed(0)}/100 is weak for this portfolio.`,
+      tone: 'negative',
+      priority: 4,
+    }
+  }
+
+  if (returnPct >= 18) {
+    return {
+      company,
+      action: 'BOOK PARTIAL',
+      reason: `Gain at ${returnPct.toFixed(2)}%, consider taking partial profits.`,
+      tone: 'positive',
+      priority: 3,
+    }
+  }
+
+  if (fitScore >= 75 && returnPct <= 12) {
+    return {
+      company,
+      action: 'BUY / ADD',
+      reason: `Fit score ${fitScore.toFixed(0)}/100 supports accumulation.`,
+      tone: 'positive',
+      priority: 3,
+    }
+  }
+
+  if (returnPct <= -4 && fitScore >= 60) {
+    return {
+      company,
+      action: 'WATCH DIP',
+      reason: `Mild drawdown (${returnPct.toFixed(2)}%) with decent fit score.`,
+      tone: 'neutral',
+      priority: 2,
+    }
+  }
+
+  return {
+    company,
+    action: 'HOLD',
+    reason: 'No urgent action required right now.',
+    tone: 'neutral',
+    priority: 1,
+  }
 }
 
 const normalizeActivityHistory = (rows = []) => {
@@ -257,6 +340,10 @@ function App({ user, onLogout, onUserUpdate, theme = 'light', onToggleTheme }) {
   const [activityHistoryReady, setActivityHistoryReady] = useState(false)
   const [recentStockSearches, setRecentStockSearches] = useState([])
   const [recentSearchReady, setRecentSearchReady] = useState(false)
+  const [priceAlerts, setPriceAlerts] = useState([])
+  const [priceAlertReady, setPriceAlertReady] = useState(false)
+  const [priceAlertDraft, setPriceAlertDraft] = useState({ stock: '', condition: 'above', targetPrice: '' })
+  const [priceAlertNote, setPriceAlertNote] = useState('')
 
   const [marketRows, setMarketRows] = useState([])
   const [marketLoading, setMarketLoading] = useState(false)
@@ -491,6 +578,35 @@ function App({ user, onLogout, onUserUpdate, theme = 'light', onToggleTheme }) {
   }, [recentStockSearches, currentUser?.id, recentSearchReady])
 
   useEffect(() => {
+    setPriceAlertReady(false)
+    setPriceAlertNote('')
+    try {
+      const key = `profitly_price_alerts_${currentUser?.id || 'demo'}`
+      const saved = localStorage.getItem(key)
+      if (!saved) {
+        setPriceAlerts([])
+      } else {
+        const parsed = JSON.parse(saved)
+        setPriceAlerts(normalizePriceAlerts(parsed))
+      }
+    } catch {
+      setPriceAlerts([])
+    } finally {
+      setPriceAlertReady(true)
+    }
+  }, [currentUser?.id])
+
+  useEffect(() => {
+    if (!priceAlertReady) return
+    try {
+      const key = `profitly_price_alerts_${currentUser?.id || 'demo'}`
+      localStorage.setItem(key, JSON.stringify(normalizePriceAlerts(priceAlerts)))
+    } catch {
+      // ignore storage errors
+    }
+  }, [priceAlerts, currentUser?.id, priceAlertReady])
+
+  useEffect(() => {
     setChatReady(false)
     setChatEditIndex(null)
     try {
@@ -628,6 +744,41 @@ function App({ user, onLogout, onUserUpdate, theme = 'light', onToggleTheme }) {
 
   const clearRecentStockSearches = () => {
     setRecentStockSearches([])
+  }
+
+  const addPriceAlert = () => {
+    const stock = String(priceAlertDraft.stock || '').trim().toUpperCase()
+    const targetPrice = toNumber(priceAlertDraft.targetPrice)
+
+    if (!stock || targetPrice <= 0) {
+      setPriceAlertNote('Enter a stock and valid trigger price.')
+      return
+    }
+
+    const nextAlert = {
+      id: `alert-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      stock,
+      condition: normalizeAlertCondition(priceAlertDraft.condition),
+      targetPrice: Number(targetPrice.toFixed(2)),
+      active: true,
+      createdAt: new Date().toISOString(),
+    }
+
+    setPriceAlerts((prev) => normalizePriceAlerts([nextAlert, ...prev]))
+    setPriceAlertDraft({ stock: '', condition: 'above', targetPrice: '' })
+    setPriceAlertNote(`Alert created for ${stock}.`)
+  }
+
+  const togglePriceAlert = (alertId) => {
+    setPriceAlerts((prev) => prev.map((alert) => (
+      alert.id === alertId
+        ? { ...alert, active: !alert.active }
+        : alert
+    )))
+  }
+
+  const removePriceAlert = (alertId) => {
+    setPriceAlerts((prev) => prev.filter((alert) => alert.id !== alertId))
   }
 
   const saveDepositDetails = () => {
@@ -793,6 +944,97 @@ function App({ user, onLogout, onUserUpdate, theme = 'light', onToggleTheme }) {
       [holding.company, holding.sector, holding.stage, holding.entryPrice, holding.currentValue, holding.minInvestment, holding.valuation]
         .some((value) => String(value || '').toLowerCase().includes(normalizedDashboardSearch)))
     : holdings
+
+  const liveMarketRows = [...marketRows, ...niftyTickerRows]
+  const livePriceLookup = liveMarketRows.reduce((lookup, row) => {
+    const price = toNumber(row?.latestClose)
+    if (price <= 0) return lookup
+    const keys = [row?.ticker, row?.company, row?.fullName]
+      .map((value) => normalizeHoldingKey(value))
+      .filter(Boolean)
+    keys.forEach((key) => {
+      if (!lookup.has(key)) lookup.set(key, price)
+    })
+    return lookup
+  }, new Map())
+
+  const evaluatedPriceAlerts = normalizePriceAlerts(priceAlerts).map((alert) => {
+    const livePrice = livePriceLookup.get(normalizeHoldingKey(alert.stock))
+    const triggered = alert.active && Number.isFinite(livePrice)
+      ? (alert.condition === 'above' ? livePrice >= alert.targetPrice : livePrice <= alert.targetPrice)
+      : false
+    return {
+      ...alert,
+      livePrice: Number.isFinite(livePrice) ? livePrice : null,
+      triggered,
+    }
+  })
+  const triggeredAlertCount = evaluatedPriceAlerts.filter((alert) => alert.triggered).length
+
+  const watchableStocks = Array.from(new Set([
+    ...holdings.map((holding) => String(holding.company || '').trim()),
+    ...niftyTickerRows.map((row) => String(row.ticker || '').trim()),
+    ...marketRows.slice(0, 40).flatMap((row) => [String(row.ticker || '').trim(), String(row.company || '').trim()]),
+  ]))
+    .filter(Boolean)
+    .slice(0, 120)
+
+  const portfolioSignals = holdings
+    .map((holding) => getHoldingSignal(holding))
+    .sort((a, b) => b.priority - a.priority || a.company.localeCompare(b.company))
+  const highlightedSignals = portfolioSignals.filter((signal) => signal.action !== 'HOLD').slice(0, 4)
+
+  const rebalancingSuggestions = (() => {
+    if (!holdings.length) {
+      return ['Add holdings to generate rebalancing suggestions.']
+    }
+
+    const totalCurrentValue = holdings.reduce((sum, holding) => sum + toNumber(holding.currentValue), 0) || 1
+    const sectorTotals = holdings.reduce((acc, holding) => {
+      const sector = String(holding.sector || 'Uncategorized').trim()
+      acc[sector] = (acc[sector] || 0) + toNumber(holding.currentValue)
+      return acc
+    }, {})
+
+    const sectorAllocations = Object.entries(sectorTotals)
+      .map(([sector, value]) => ({ sector, value, pct: (value / totalCurrentValue) * 100 }))
+      .sort((a, b) => b.pct - a.pct)
+
+    const suggestions = []
+    const topSector = sectorAllocations[0]
+
+    if (topSector && topSector.pct > 45) {
+      suggestions.push(
+        `Trim ${topSector.sector} exposure from ${topSector.pct.toFixed(1)}% toward 35-40% to reduce concentration risk.`
+      )
+    }
+
+    if (sectorAllocations.length < 3 && holdings.length >= 3) {
+      suggestions.push('Diversify into at least one additional sector to improve balance.')
+    }
+
+    const weakHoldings = holdings
+      .filter((holding) => toNumber(holding.returnPercentage) <= -10)
+      .map((holding) => holding.company)
+      .filter(Boolean)
+      .slice(0, 2)
+    if (weakHoldings.length > 0) {
+      suggestions.push(`Review underperformers: ${weakHoldings.join(', ')}.`)
+    }
+
+    const risingSector = marketRows
+      .filter((row) => toNumber(row.returnPercent) > 0)
+      .sort((a, b) => toNumber(b.returnPercent) - toNumber(a.returnPercent))[0]?.sector
+    if (risingSector && !sectorTotals[risingSector]) {
+      suggestions.push(`Consider phased allocation to ${risingSector} based on current market momentum.`)
+    }
+
+    if (!suggestions.length) {
+      suggestions.push('Current allocation appears balanced. Continue periodic monthly review.')
+    }
+
+    return suggestions.slice(0, 3)
+  })()
 
   const configuredRisk = Math.round(toNumber(userSettings?.riskTolerance, 50))
   const selectedSectors = Array.isArray(userSettings?.selectedSectors) && userSettings.selectedSectors.length > 0
@@ -1243,10 +1485,110 @@ function App({ user, onLogout, onUserUpdate, theme = 'light', onToggleTheme }) {
                         </div>
                       </div>
 
-                      {/* Market Alerts */}
-                      <div className="shell-card">
-                        <p className="shell-card-label">MARKET ALERT 🔔</p>
-                        <p className="shell-alert-text">Nifty 50 is up 1.2% today. IT sector showing strong momentum. Consider increasing tech exposure.</p>
+                      {/* Recommendations & Alerts */}
+                      <div className="shell-card shell-recommendations-card">
+                        <div className="shell-card-header-row">
+                          <p className="shell-card-label">RECOMMENDATIONS & ALERTS 🔔</p>
+                          <span className="shell-reco-badge">{triggeredAlertCount} triggered</span>
+                        </div>
+
+                        <div className="shell-reco-block">
+                          <p className="shell-reco-title">Buy/Sell Signals</p>
+                          {highlightedSignals.length === 0 ? (
+                            <p className="shell-alert-text">No urgent buy/sell signals. Portfolio is currently stable.</p>
+                          ) : (
+                            <div className="shell-reco-list">
+                              {highlightedSignals.map((signal, index) => (
+                                <div key={`${signal.company}-${index}`} className={`shell-reco-item ${signal.tone}`}>
+                                  <div>
+                                    <p className="shell-asset-name">{signal.company}</p>
+                                    <p className="shell-asset-sub">{signal.reason}</p>
+                                  </div>
+                                  <span className="shell-reco-action">{signal.action}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="shell-reco-block">
+                          <p className="shell-reco-title">Price Alerts (Watched Stocks)</p>
+                          <div className="shell-alert-form">
+                            <input
+                              list="profitly-watchlist-options"
+                              value={priceAlertDraft.stock}
+                              onChange={(event) => {
+                                setPriceAlertDraft((prev) => ({ ...prev, stock: event.target.value }))
+                                setPriceAlertNote('')
+                              }}
+                              placeholder="Ticker or company"
+                            />
+                            <datalist id="profitly-watchlist-options">
+                              {watchableStocks.map((stock) => (
+                                <option key={stock} value={stock} />
+                              ))}
+                            </datalist>
+                            <select
+                              value={priceAlertDraft.condition}
+                              onChange={(event) => setPriceAlertDraft((prev) => ({ ...prev, condition: event.target.value }))}
+                            >
+                              <option value="above">Above</option>
+                              <option value="below">Below</option>
+                            </select>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={priceAlertDraft.targetPrice}
+                              onChange={(event) => {
+                                setPriceAlertDraft((prev) => ({ ...prev, targetPrice: event.target.value }))
+                                setPriceAlertNote('')
+                              }}
+                              placeholder="Trigger price"
+                            />
+                            <button className="shell-alert-add-btn" onClick={addPriceAlert}>Add</button>
+                          </div>
+                          {priceAlertNote && (
+                            <p className="shell-alert-note">{priceAlertNote}</p>
+                          )}
+                          {evaluatedPriceAlerts.length === 0 ? (
+                            <p className="shell-alert-text">No price alerts yet. Add watched stocks to track triggers.</p>
+                          ) : (
+                            <div className="shell-alert-list">
+                              {evaluatedPriceAlerts.slice(0, 5).map((alert) => (
+                                <div key={alert.id} className={`shell-alert-row ${alert.triggered ? 'triggered' : ''}`}>
+                                  <div>
+                                    <p className="shell-asset-name">{alert.stock}</p>
+                                    <p className="shell-asset-sub">
+                                      {alert.condition === 'above' ? 'Above' : 'Below'} {formatCurrency(alert.targetPrice)}
+                                      {alert.livePrice !== null ? ` · Live ${formatCurrency(alert.livePrice)}` : ' · Live price unavailable'}
+                                    </p>
+                                  </div>
+                                  <div className="shell-alert-actions">
+                                    <span className={`shell-alert-pill ${alert.triggered ? 'triggered' : (alert.active ? 'active' : 'inactive')}`}>
+                                      {alert.triggered ? 'Triggered' : (alert.active ? 'Watching' : 'Paused')}
+                                    </span>
+                                    <button className="shell-view-all" onClick={() => togglePriceAlert(alert.id)}>
+                                      {alert.active ? 'Pause' : 'Resume'}
+                                    </button>
+                                    <button className="shell-view-all shell-danger" onClick={() => removePriceAlert(alert.id)}>
+                                      Remove
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="shell-reco-block">
+                          <p className="shell-reco-title">Rebalancing Suggestions</p>
+                          <div className="shell-rebalance-list">
+                            {rebalancingSuggestions.map((suggestion, index) => (
+                              <p key={`rebalance-${index}`} className="shell-alert-text">{index + 1}. {suggestion}</p>
+                            ))}
+                          </div>
+                        </div>
                       </div>
                     </div>
 
