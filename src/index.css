@@ -669,6 +669,10 @@ body {
   gap: 12px;
 }
 
+.shell-recommendations-wide {
+  width: 100%;
+}
+
 .shell-reco-badge {
   font-size: 11px;
   color: var(--gold);

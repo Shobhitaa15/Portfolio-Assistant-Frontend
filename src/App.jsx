@@ -1081,6 +1081,112 @@ function App({ user, onLogout, onUserUpdate, theme = 'light', onToggleTheme }) {
     userId: currentUser?.id || 'demo',
   }
   const tickerDisplayRows = niftyTickerRows.slice(0, 20)
+  const recommendationsPanel = (
+    <div className="shell-card shell-recommendations-card shell-recommendations-wide">
+      <div className="shell-card-header-row">
+        <p className="shell-card-label">RECOMMENDATIONS & ALERTS 🔔</p>
+        <span className="shell-reco-badge">{triggeredAlertCount} triggered</span>
+      </div>
+
+      <div className="shell-reco-block">
+        <p className="shell-reco-title">Buy/Sell Signals</p>
+        {highlightedSignals.length === 0 ? (
+          <p className="shell-alert-text">No urgent buy/sell signals. Portfolio is currently stable.</p>
+        ) : (
+          <div className="shell-reco-list">
+            {highlightedSignals.map((signal, index) => (
+              <div key={`${signal.company}-${index}`} className={`shell-reco-item ${signal.tone}`}>
+                <div>
+                  <p className="shell-asset-name">{signal.company}</p>
+                  <p className="shell-asset-sub">{signal.reason}</p>
+                </div>
+                <span className="shell-reco-action">{signal.action}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="shell-reco-block">
+        <p className="shell-reco-title">Price Alerts (Watched Stocks)</p>
+        <div className="shell-alert-form">
+          <input
+            list="profitly-watchlist-options"
+            value={priceAlertDraft.stock}
+            onChange={(event) => {
+              setPriceAlertDraft((prev) => ({ ...prev, stock: event.target.value }))
+              setPriceAlertNote('')
+            }}
+            placeholder="Ticker or company"
+          />
+          <datalist id="profitly-watchlist-options">
+            {watchableStocks.map((stock) => (
+              <option key={stock} value={stock} />
+            ))}
+          </datalist>
+          <select
+            value={priceAlertDraft.condition}
+            onChange={(event) => setPriceAlertDraft((prev) => ({ ...prev, condition: event.target.value }))}
+          >
+            <option value="above">Above</option>
+            <option value="below">Below</option>
+          </select>
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            value={priceAlertDraft.targetPrice}
+            onChange={(event) => {
+              setPriceAlertDraft((prev) => ({ ...prev, targetPrice: event.target.value }))
+              setPriceAlertNote('')
+            }}
+            placeholder="Trigger price"
+          />
+          <button className="shell-alert-add-btn" onClick={addPriceAlert}>Add</button>
+        </div>
+        {priceAlertNote && (
+          <p className="shell-alert-note">{priceAlertNote}</p>
+        )}
+        {evaluatedPriceAlerts.length === 0 ? (
+          <p className="shell-alert-text">No price alerts yet. Add watched stocks to track triggers.</p>
+        ) : (
+          <div className="shell-alert-list">
+            {evaluatedPriceAlerts.slice(0, 5).map((alert) => (
+              <div key={alert.id} className={`shell-alert-row ${alert.triggered ? 'triggered' : ''}`}>
+                <div>
+                  <p className="shell-asset-name">{alert.stock}</p>
+                  <p className="shell-asset-sub">
+                    {alert.condition === 'above' ? 'Above' : 'Below'} {formatCurrency(alert.targetPrice)}
+                    {alert.livePrice !== null ? ` · Live ${formatCurrency(alert.livePrice)}` : ' · Live price unavailable'}
+                  </p>
+                </div>
+                <div className="shell-alert-actions">
+                  <span className={`shell-alert-pill ${alert.triggered ? 'triggered' : (alert.active ? 'active' : 'inactive')}`}>
+                    {alert.triggered ? 'Triggered' : (alert.active ? 'Watching' : 'Paused')}
+                  </span>
+                  <button className="shell-view-all" onClick={() => togglePriceAlert(alert.id)}>
+                    {alert.active ? 'Pause' : 'Resume'}
+                  </button>
+                  <button className="shell-view-all shell-danger" onClick={() => removePriceAlert(alert.id)}>
+                    Remove
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="shell-reco-block">
+        <p className="shell-reco-title">Rebalancing Suggestions</p>
+        <div className="shell-rebalance-list">
+          {rebalancingSuggestions.map((suggestion, index) => (
+            <p key={`rebalance-${index}`} className="shell-alert-text">{index + 1}. {suggestion}</p>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
 
   return (
     <div className="app-shell">
@@ -1485,111 +1591,6 @@ function App({ user, onLogout, onUserUpdate, theme = 'light', onToggleTheme }) {
                         </div>
                       </div>
 
-                      {/* Recommendations & Alerts */}
-                      <div className="shell-card shell-recommendations-card">
-                        <div className="shell-card-header-row">
-                          <p className="shell-card-label">RECOMMENDATIONS & ALERTS 🔔</p>
-                          <span className="shell-reco-badge">{triggeredAlertCount} triggered</span>
-                        </div>
-
-                        <div className="shell-reco-block">
-                          <p className="shell-reco-title">Buy/Sell Signals</p>
-                          {highlightedSignals.length === 0 ? (
-                            <p className="shell-alert-text">No urgent buy/sell signals. Portfolio is currently stable.</p>
-                          ) : (
-                            <div className="shell-reco-list">
-                              {highlightedSignals.map((signal, index) => (
-                                <div key={`${signal.company}-${index}`} className={`shell-reco-item ${signal.tone}`}>
-                                  <div>
-                                    <p className="shell-asset-name">{signal.company}</p>
-                                    <p className="shell-asset-sub">{signal.reason}</p>
-                                  </div>
-                                  <span className="shell-reco-action">{signal.action}</span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="shell-reco-block">
-                          <p className="shell-reco-title">Price Alerts (Watched Stocks)</p>
-                          <div className="shell-alert-form">
-                            <input
-                              list="profitly-watchlist-options"
-                              value={priceAlertDraft.stock}
-                              onChange={(event) => {
-                                setPriceAlertDraft((prev) => ({ ...prev, stock: event.target.value }))
-                                setPriceAlertNote('')
-                              }}
-                              placeholder="Ticker or company"
-                            />
-                            <datalist id="profitly-watchlist-options">
-                              {watchableStocks.map((stock) => (
-                                <option key={stock} value={stock} />
-                              ))}
-                            </datalist>
-                            <select
-                              value={priceAlertDraft.condition}
-                              onChange={(event) => setPriceAlertDraft((prev) => ({ ...prev, condition: event.target.value }))}
-                            >
-                              <option value="above">Above</option>
-                              <option value="below">Below</option>
-                            </select>
-                            <input
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              value={priceAlertDraft.targetPrice}
-                              onChange={(event) => {
-                                setPriceAlertDraft((prev) => ({ ...prev, targetPrice: event.target.value }))
-                                setPriceAlertNote('')
-                              }}
-                              placeholder="Trigger price"
-                            />
-                            <button className="shell-alert-add-btn" onClick={addPriceAlert}>Add</button>
-                          </div>
-                          {priceAlertNote && (
-                            <p className="shell-alert-note">{priceAlertNote}</p>
-                          )}
-                          {evaluatedPriceAlerts.length === 0 ? (
-                            <p className="shell-alert-text">No price alerts yet. Add watched stocks to track triggers.</p>
-                          ) : (
-                            <div className="shell-alert-list">
-                              {evaluatedPriceAlerts.slice(0, 5).map((alert) => (
-                                <div key={alert.id} className={`shell-alert-row ${alert.triggered ? 'triggered' : ''}`}>
-                                  <div>
-                                    <p className="shell-asset-name">{alert.stock}</p>
-                                    <p className="shell-asset-sub">
-                                      {alert.condition === 'above' ? 'Above' : 'Below'} {formatCurrency(alert.targetPrice)}
-                                      {alert.livePrice !== null ? ` · Live ${formatCurrency(alert.livePrice)}` : ' · Live price unavailable'}
-                                    </p>
-                                  </div>
-                                  <div className="shell-alert-actions">
-                                    <span className={`shell-alert-pill ${alert.triggered ? 'triggered' : (alert.active ? 'active' : 'inactive')}`}>
-                                      {alert.triggered ? 'Triggered' : (alert.active ? 'Watching' : 'Paused')}
-                                    </span>
-                                    <button className="shell-view-all" onClick={() => togglePriceAlert(alert.id)}>
-                                      {alert.active ? 'Pause' : 'Resume'}
-                                    </button>
-                                    <button className="shell-view-all shell-danger" onClick={() => removePriceAlert(alert.id)}>
-                                      Remove
-                                    </button>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="shell-reco-block">
-                          <p className="shell-reco-title">Rebalancing Suggestions</p>
-                          <div className="shell-rebalance-list">
-                            {rebalancingSuggestions.map((suggestion, index) => (
-                              <p key={`rebalance-${index}`} className="shell-alert-text">{index + 1}. {suggestion}</p>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
                     </div>
 
                     {/* Center - AI + Chat unified */}
@@ -1725,6 +1726,8 @@ function App({ user, onLogout, onUserUpdate, theme = 'light', onToggleTheme }) {
                       </div>
                     </div>
                   </div>
+
+                  {recommendationsPanel}
 
                   {/* Recent Activity */}
                   <div className="shell-activity">
