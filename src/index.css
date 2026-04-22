@@ -552,13 +552,87 @@ body {
 }
 
 .shell-fit-score {
-  font-family: var(--app-font);
-  font-size: 40px;
-  font-weight: 700;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 64px;
+  font-weight: 500;
+  line-height: 0.95;
   color: var(--text);
 }
 
 .shell-verified { font-size: 24px; }
+
+.shell-fit-card {
+  border-color: rgba(201, 168, 76, 0.62);
+  background: linear-gradient(145deg, rgba(201, 168, 76, 0.08) 0%, var(--navy-3) 42%, var(--navy-3) 100%);
+}
+
+.shell-fit-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 6px;
+}
+
+.shell-fit-label {
+  margin-bottom: 0;
+  letter-spacing: 4px;
+}
+
+.shell-fit-max {
+  font-family: var(--app-font);
+  font-size: 28px;
+  color: var(--text-dim);
+  line-height: 1;
+}
+
+.shell-fit-metric-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.shell-fit-delta {
+  color: var(--green);
+  font-family: var(--app-font);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  margin-bottom: 10px;
+  white-space: nowrap;
+}
+
+.shell-fit-segments {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 14px;
+}
+
+.shell-fit-segment {
+  height: 34px;
+  flex: 1;
+  border-radius: 4px;
+  border: 1px solid transparent;
+}
+
+.shell-fit-segment.gold {
+  background: linear-gradient(135deg, var(--gold-light), var(--gold));
+}
+
+.shell-fit-segment.dark {
+  background: linear-gradient(145deg, #111826, #090c12);
+  border-color: rgba(17, 24, 38, 0.8);
+}
+
+.shell-fit-segment.neutral {
+  background: var(--navy-2);
+  border-color: var(--border);
+}
+
+.shell-fit-sub {
+  font-size: 11px;
+}
 
 .shell-score-bar-bg {
   height: 4px;

@@ -255,6 +255,11 @@ function App({ user, onLogout, onUserUpdate, theme = 'light', onToggleTheme }) {
     return 94.2
   })()
   const fitTopPercent = Math.max(1, Math.min(35, Math.round((100 - portfolioFitScore) / 2)))
+  const fitScoreRounded = Math.max(0, Math.min(100, Math.round(portfolioFitScore)))
+  const fitDelta = 4
+  const fitSegmentTotal = 12
+  const fitGoldSegments = Math.max(0, Math.min(fitSegmentTotal, Math.round((fitScoreRounded / 100) * 8) + 1))
+  const fitDarkSegments = Math.min(2, Math.max(0, fitSegmentTotal - fitGoldSegments))
   const marketSectors = ['All', ...Array.from(new Set([marketSector, ...marketRows.map((row) => row.sector).filter(Boolean)])).filter(Boolean).sort()]
   const vaultProtectionText = vaultSettings
     ? `${vaultSettings.autoReserve ? 'Reserve automation active' : 'Reserve automation inactive'}. Emergency buffer ${vaultSettings.emergencyBufferPercent || 12}% with max exposure ${vaultSettings.maxSingleExposure || 28}%.`
@@ -580,16 +585,32 @@ function App({ user, onLogout, onUserUpdate, theme = 'light', onToggleTheme }) {
                     {/* Left column - stats */}
                     <div className="shell-left-col">
                       {/* Fit Score card */}
-                      <div className="shell-card">
-                        <p className="shell-card-label">PORTFOLIO FIT SCORE</p>
-                        <div className="shell-card-header-row">
-                          <h2 className="shell-fit-score">{portfolioFitScore}</h2>
-                          <div className="shell-verified">🏅</div>
+                      <div className="shell-card shell-fit-card">
+                        <div className="shell-fit-head">
+                          <p className="shell-card-label shell-fit-label">PORTFOLIO FIT SCORE</p>
+                          <span className="shell-fit-max">/100</span>
                         </div>
-                        <div className="shell-score-bar-bg">
-                          <div className="shell-score-bar" style={{ width: `${portfolioFitScore}%` }} />
+                        <div className="shell-fit-metric-row">
+                          <h2 className="shell-fit-score">{fitScoreRounded}</h2>
+                          <p className="shell-fit-delta">
+                            ▲ +{fitDelta} vs last wk
+                          </p>
                         </div>
-                        <p className="shell-card-sub">
+                        <div className="shell-fit-segments">
+                          {Array.from({ length: fitSegmentTotal }).map((_, idx) => (
+                            <span
+                              key={`fit-segment-${idx}`}
+                              className={`shell-fit-segment ${
+                                idx < fitGoldSegments
+                                  ? 'gold'
+                                  : idx < fitGoldSegments + fitDarkSegments
+                                    ? 'dark'
+                                    : 'neutral'
+                              }`}
+                            />
+                          ))}
+                        </div>
+                        <p className="shell-card-sub shell-fit-sub">
                           Optimization level is currently in the <span className="gold-text">top {fitTopPercent}%</span> of peer benchmarks.
                         </p>
                       </div>
