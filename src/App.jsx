@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import './index.css'
 import Portfolio from './Portfolio'
 import { apiUrl, withAuthHeaders } from './api'
@@ -43,13 +43,16 @@ const summarizePortfolio = (holdings = []) => {
 function App({ user, onLogout, onUserUpdate, theme = 'light', onToggleTheme }) {
   const [currentUser, setCurrentUser] = useState(user)
   const [activeNav, setActiveNav] = useState('Dashboard')
+  const [activeTopTab, setActiveTopTab] = useState('Overview')
   const [showPortfolio, setShowPortfolio] = useState(false)
+  const [showProfilePanel, setShowProfilePanel] = useState(false)
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [searchInput, setSearchInput] = useState('')
   const [portfolioData, setPortfolioData] = useState(null)
   const [vaultSettings, setVaultSettings] = useState(null)
+  const [userSettings, setUserSettings] = useState(null)
   const [recentActivity] = useState([
     { icon: '📈', name: 'TCS Buy Order', sub: 'Tata Consultancy · IT Equity', status: 'SETTLED', date: 'Mar 15, 2026', impact: '+₹12,400', growth: '+4.2% GROWTH', positive: true },
     { icon: '💰', name: 'Quarterly Dividend', sub: 'HDFC Bank · Banking', status: 'PENDING', date: 'Mar 12, 2026', impact: '+₹3,120', growth: 'AUTO-INVESTED', positive: true },
@@ -82,6 +85,16 @@ function App({ user, onLogout, onUserUpdate, theme = 'light', onToggleTheme }) {
       setVaultSettings(saved ? JSON.parse(saved) : null)
     } catch {
       setVaultSettings(null)
+    }
+  }, [currentUser?.id])
+
+  const loadUserSettings = useCallback(() => {
+    try {
+      const key = `profitly_settings_${currentUser?.id || 'demo'}`
+      const saved = localStorage.getItem(key)
+      setUserSettings(saved ? JSON.parse(saved) : null)
+    } catch {
+      setUserSettings(null)
     }
   }, [currentUser?.id])
 
@@ -146,6 +159,10 @@ function App({ user, onLogout, onUserUpdate, theme = 'light', onToggleTheme }) {
     loadVaultSettings()
   }, [loadVaultSettings])
 
+  useEffect(() => {
+    loadUserSettings()
+  }, [loadUserSettings])
+
   const sendMessage = async (text) => {
     const messageText = (text || input).trim()
     if (!messageText || loading) return
@@ -206,6 +223,13 @@ function App({ user, onLogout, onUserUpdate, theme = 'light', onToggleTheme }) {
   const handleProfileUpdate = (nextUser) => {
     setCurrentUser(nextUser)
     if (onUserUpdate) onUserUpdate(nextUser)
+    try {
+      const key = `profitly_settings_${nextUser?.id || 'demo'}`
+      const saved = localStorage.getItem(key)
+      setUserSettings(saved ? JSON.parse(saved) : null)
+    } catch {
+      setUserSettings(null)
+    }
   }
 
   const handleVaultSave = (nextVaultSettings) => {
@@ -238,6 +262,66 @@ function App({ user, onLogout, onUserUpdate, theme = 'light', onToggleTheme }) {
   const vaultLockText = vaultSettings
     ? `${vaultSettings.lockWithdrawals ? 'Withdrawal lock on' : 'Withdrawal lock off'}${vaultSettings.withdrawalWindow ? ` (${vaultSettings.withdrawalWindow})` : ''}.`
     : 'Withdrawal lock status will appear here after setup.'
+  const dashboardSearchTerm = searchInput.trim()
+  const normalizedDashboardSearch = dashboardSearchTerm.toLowerCase()
+  const holdings = Array.isArray(portfolioData?.holdings) ? portfolioData.holdings : []
+
+  const filteredActivity = normalizedDashboardSearch
+    ? recentActivity.filter((item) =>
+      [item.name, item.sub, item.status, item.date, item.impact, item.growth]
+        .some((value) => String(value || '').toLowerCase().includes(normalizedDashboardSearch)))
+    : recentActivity
+
+  const filteredHoldings = normalizedDashboardSearch
+    ? holdings.filter((holding) =>
+      [holding.company, holding.sector, holding.stage]
+        .some((value) => String(value || '').toLowerCase().includes(normalizedDashboardSearch)))
+    : holdings
+
+  const configuredRisk = Math.round(toNumber(userSettings?.riskTolerance, 50))
+  const selectedSectors = Array.isArray(userSettings?.selectedSectors) && userSettings.selectedSectors.length > 0
+    ? userSettings.selectedSectors.join(', ')
+    : 'Not configured'
+
+  const reportCards = [
+    {
+      title: 'Risk Configuration',
+      value: `${configuredRisk}%`,
+      detail: `Profile: ${configuredRisk < 33 ? 'Conservative' : configuredRisk < 66 ? 'Moderate' : 'Aggressive'}`,
+    },
+    {
+      title: 'Preferred Sectors',
+      value: selectedSectors,
+      detail: `Top match fit score: ${portfolioFitScore}/100`,
+    },
+    {
+      title: 'Vault Guardrails',
+      value: vaultSettings
+        ? `Buffer ${vaultSettings.emergencyBufferPercent || 12}% | Stop-loss ${vaultSettings.stopLossPercent || 8}%`
+        : 'Not configured',
+      detail: vaultSettings?.lockWithdrawals ? `Withdrawal lock ${vaultSettings.withdrawalWindow || 'enabled'}` : 'Withdrawal lock disabled',
+    },
+    {
+      title: 'Portfolio Coverage',
+      value: `${holdings.length} holdings`,
+      detail: `Average return ${avgReturn}% | Value ₹${Math.round(totalValue).toLocaleString('en-IN')}`,
+    },
+  ]
+
+  const filteredReportCards = normalizedDashboardSearch
+    ? reportCards.filter((card) =>
+      [card.title, card.value, card.detail]
+        .some((value) => String(value || '').toLowerCase().includes(normalizedDashboardSearch)))
+    : reportCards
+
+  const profileDetails = {
+    fullName: currentUser?.name || 'Investor',
+    email: currentUser?.email || userSettings?.profile?.email || 'Not set',
+    phone: currentUser?.phone || userSettings?.profile?.phone || 'Not set',
+    country: currentUser?.country || userSettings?.profile?.country || 'Not set',
+    currency: currentUser?.currency || userSettings?.profile?.currency || 'INR',
+    userId: currentUser?.id || 'demo',
+  }
 
   return (
     <div className="app-shell">
@@ -264,6 +348,7 @@ function App({ user, onLogout, onUserUpdate, theme = 'light', onToggleTheme }) {
               className={`shell-nav-item ${activeNav === item.label ? 'active' : ''}`}
               onClick={() => {
                 setActiveNav(item.label)
+                setShowProfilePanel(false)
                 if (item.label === 'Portfolio') setShowPortfolio(true)
               }}
             >
@@ -278,10 +363,10 @@ function App({ user, onLogout, onUserUpdate, theme = 'light', onToggleTheme }) {
         </button>
 
         <div className="shell-sidebar-bottom">
-          <button className="shell-nav-item" onClick={() => setActiveNav('Settings')}>
+          <button className="shell-nav-item" onClick={() => { setActiveNav('Settings'); setShowProfilePanel(false) }}>
             <span className="shell-nav-icon">⚙️</span> Settings
           </button>
-          <button className="shell-nav-item" onClick={onLogout}>
+          <button className="shell-nav-item" onClick={() => { setShowProfilePanel(false); onLogout() }}>
             <span className="shell-nav-icon">🚪</span> Logout
           </button>
         </div>
@@ -302,14 +387,39 @@ function App({ user, onLogout, onUserUpdate, theme = 'light', onToggleTheme }) {
                   setSearchInput(e.target.value)
                 }
               }}
-              placeholder={activeNav === 'Markets' ? 'Search ticker or company...' : 'Search markets, assets, or reports...'}
+              placeholder={
+                activeNav === 'Markets'
+                  ? 'Search ticker or company...'
+                  : activeTopTab === 'History'
+                    ? 'Search history by asset, status, date...'
+                    : activeTopTab === 'Reports'
+                      ? 'Search report insights, risk, and sectors...'
+                      : 'Search markets, assets, or reports...'
+              }
             />
           </div>
           <nav className="shell-topnav">
             {['Overview', 'History', 'Reports'].map(t => (
-              <button key={t} className="shell-topnav-item">{t}</button>
+              <button
+                key={t}
+                className={`shell-topnav-item ${activeTopTab === t ? 'active' : ''}`}
+                onClick={() => {
+                  setActiveTopTab(t)
+                  setActiveNav('Dashboard')
+                }}
+              >
+                {t}
+              </button>
             ))}
-            <button className="shell-deposit-btn">Deposit</button>
+            <button
+              className="shell-deposit-btn"
+              onClick={() => {
+                setActiveTopTab('Reports')
+                setActiveNav('Dashboard')
+              }}
+            >
+              Deposit
+            </button>
           </nav>
           <button
             className="theme-toggle-btn"
@@ -319,13 +429,33 @@ function App({ user, onLogout, onUserUpdate, theme = 'light', onToggleTheme }) {
           >
             {theme === 'dark' ? '☀️ Light' : '🌙 Dark'}
           </button>
-          <div className="shell-user">
+          <button className="shell-user shell-user-btn" onClick={() => setShowProfilePanel((prev) => !prev)}>
             <div className="shell-user-info">
               <span className="shell-user-name">{firstName}</span>
               <span className="shell-user-role">PRIVATE BANKING</span>
             </div>
             <div className="shell-user-avatar">{firstName[0]}</div>
-          </div>
+          </button>
+          {showProfilePanel && (
+            <div className="shell-profile-panel">
+              <p className="shell-profile-title">Profile Overview</p>
+              <div className="shell-profile-row"><span>Name</span><strong>{profileDetails.fullName}</strong></div>
+              <div className="shell-profile-row"><span>Email</span><strong>{profileDetails.email}</strong></div>
+              <div className="shell-profile-row"><span>Phone</span><strong>{profileDetails.phone}</strong></div>
+              <div className="shell-profile-row"><span>Country</span><strong>{profileDetails.country}</strong></div>
+              <div className="shell-profile-row"><span>Currency</span><strong>{profileDetails.currency}</strong></div>
+              <div className="shell-profile-row"><span>Member ID</span><strong>{profileDetails.userId}</strong></div>
+              <button
+                className="shell-profile-action"
+                onClick={() => {
+                  setShowProfilePanel(false)
+                  setActiveNav('Settings')
+                }}
+              >
+                Open Profile Settings
+              </button>
+            </div>
+          )}
         </header>
 
         {/* Dashboard content */}
@@ -413,230 +543,338 @@ function App({ user, onLogout, onUserUpdate, theme = 'light', onToggleTheme }) {
             />
           ) : (
             <>
-          {/* Morning briefing */}
-          <div className="shell-briefing">
-            <div className="shell-briefing-left">
-              <p className="shell-briefing-label">MORNING BRIEFING</p>
-              <h1 className="shell-greeting">
-                {getGreeting()}<br />
-                <span className="shell-greeting-name">{firstName}.</span>
-              </h1>
-              <p className="shell-briefing-text">
-                Your sovereign ledger has grown by {avgReturn}% since last week. The Nifty 50 markets are showing strong momentum in IT and Banking sectors.
-              </p>
-            </div>
-            <div className="shell-wealth">
-              <p className="shell-wealth-label">AGGREGATE WEALTH</p>
-              <p className="shell-wealth-value">
-                ₹{totalValue.toLocaleString('en-IN')}
-                <span className="shell-wealth-decimal">.00</span>
-              </p>
-              <p className="shell-wealth-change">
-                📈 +₹{Math.round(totalValue * 0.024).toLocaleString('en-IN')} ({avgReturn}%)
-              </p>
-            </div>
-          </div>
+              {activeTopTab === 'Overview' && (
+                <>
+                  {dashboardSearchTerm && (
+                    <div className="shell-search-meta">
+                      Search "{dashboardSearchTerm}" found {filteredActivity.length} activity records and {filteredHoldings.length} holdings.
+                    </div>
+                  )}
 
-{/* Middle cards row */}
-<div className="shell-cards-row">
-  {/* Left column - stats */}
-  <div className="shell-left-col">
-    {/* Fit Score card */}
-    <div className="shell-card">
-      <p className="shell-card-label">PORTFOLIO FIT SCORE</p>
-      <div className="shell-card-header-row">
-        <h2 className="shell-fit-score">{portfolioFitScore}</h2>
-        <div className="shell-verified">🏅</div>
-      </div>
-      <div className="shell-score-bar-bg">
-        <div className="shell-score-bar" style={{ width: `${portfolioFitScore}%` }} />
-      </div>
-      <p className="shell-card-sub">
-        Optimization level is currently in the <span className="gold-text">top {fitTopPercent}%</span> of peer benchmarks.
-      </p>
-    </div>
-
-    {/* Projected Yield */}
-    <div className="shell-card">
-      <p className="shell-card-label">PROJECTED ANNUAL YIELD</p>
-      <h3 className="shell-yield-value">
-        ₹{Math.round(totalValue * 0.1).toLocaleString('en-IN')}
-        <span className="shell-yield-change"> +0.8%</span>
-      </h3>
-      <div className="shell-quick-btns" style={{marginTop: '12px'}}>
-        {['FIXED', 'EQUITY', 'ALT'].map(b => (
-          <button key={b} className="shell-quick-btn"
-            onClick={() => sendMessage(`Show me ${b} investments`)}>
-            {b}
-          </button>
-        ))}
-      </div>
-    </div>
-
-    {/* Market Alerts */}
-    <div className="shell-card">
-      <p className="shell-card-label">MARKET ALERT 🔔</p>
-      <p className="shell-alert-text">Nifty 50 is up 1.2% today. IT sector showing strong momentum. Consider increasing tech exposure.</p>
-    </div>
-  </div>
-
-  {/* Center - AI + Chat unified */}
-  <div className="shell-card shell-card-dark shell-ai-chat">
-    <div className="shell-insight-header">
-      <div className="shell-ai-badge">AI</div>
-      <p className="shell-card-label">PROFITLY INSIGHT ENGINE</p>
-    </div>
-
-    <h3 className="shell-insight-title">
-      Strategic intelligence<br />
-      for your <em>Nifty 50</em> assets.
-    </h3>
-
-    {/* Chat messages */}
-    <div className="shell-chat-messages">
-      {messages.length === 0 && (
-        <div className="shell-empty-chat">
-          <p>🤖 Ask me anything about your investments, risk levels, or market opportunities.</p>
-        </div>
-      )}
-      {messages.map((msg, i) => (
-        <div key={i} className={`shell-chat-bubble ${msg.role}`}>
-          {msg.role === 'assistant' && (
-            <span className="shell-bubble-label">PROFITLY AI</span>
-          )}
-          <p>{msg.content}</p>
-          {msg.offerings && msg.offerings.slice(0, 2).map((o, j) => (
-            <div key={j} className="shell-inline-stock">
-              <div>
-                <span className="shell-stock-name">{o.company}</span>
-                <span className="shell-stock-meta"> · {o.sector} · ₹{o.latestClose}</span>
-              </div>
-              <span className="shell-stock-score">{o.fitScore?.score}/100</span>
-            </div>
-          ))}
-          {msg.suggestions && (
-            <div className="shell-bubble-chips">
-              {msg.suggestions.slice(0, 3).map((s, j) => (
-                <button key={j} className="shell-chip" onClick={() => sendMessage(s)}>{s}</button>
-              ))}
-            </div>
-          )}
-        </div>
-      ))}
-      {loading && (
-        <div className="shell-chat-bubble assistant">
-          <span className="shell-bubble-label">PROFITLY AI</span>
-          <div className="shell-typing">
-            <span/><span/><span/>
-          </div>
-        </div>
-      )}
-    </div>
-
-    {/* Chat input */}
-    <div className="shell-chat-input-wrap">
-      <span>💬</span>
-      <input
-        value={input}
-        onChange={e => setInput(e.target.value)}
-        onKeyPress={e => e.key === 'Enter' && sendMessage()}
-        placeholder="Ask Profitly AI about your investments..."
-      />
-      <button className="shell-send" onClick={() => sendMessage()}>→</button>
-    </div>
-
-    {/* Quick asks */}
-    <div className="shell-quick-asks">
-      {['📊 Analyze my portfolio', '⚠️ Check risk levels', '💡 Best opportunities', '📈 Top IT stocks'].map((q, i) => (
-        <button key={i} className="shell-quick-ask" onClick={() => sendMessage(q)}>{q}</button>
-      ))}
-    </div>
-
-    <button className="shell-rebalance-btn" onClick={() => sendMessage('Should I rebalance my portfolio?')}>
-      Execute Rebalance →
-    </button>
-  </div>
-
-  {/* Right - Vault Protection */}
-  <div className="shell-right-col">
-    <div className="shell-card">
-      <p className="shell-card-label">VAULT PROTECTION 🔒</p>
-      <p className="shell-alert-text">{vaultProtectionText}</p>
-      <p className="shell-alert-text" style={{ marginTop: '8px' }}>{vaultLockText}</p>
-    </div>
-    <div className="shell-card">
-      <p className="shell-card-label">PORTFOLIO HEALTH</p>
-      <div className="shell-health-items">
-        {[
-          { label: 'Diversification', value: '85%', color: 'var(--green)' },
-          { label: 'Risk Balance', value: '72%', color: 'var(--amber)' },
-          { label: 'Liquidity', value: '91%', color: 'var(--green)' },
-        ].map((h, i) => (
-          <div key={i} className="shell-health-item">
-            <div className="shell-health-row">
-              <span className="shell-health-label">{h.label}</span>
-              <span className="shell-health-val" style={{color: h.color}}>{h.value}</span>
-            </div>
-            <div className="shell-score-bar-bg">
-              <div className="shell-score-bar" style={{width: h.value, background: h.color}}/>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-    <div className="shell-card">
-      <p className="shell-card-label">SECTORS 📊</p>
-      {portfolioData?.holdings ? (
-        [...new Set(portfolioData.holdings.map(h => h.sector))].map((s, i) => (
-          <div key={i} className="shell-sector-item">
-            <span className="shell-sector-name">{s}</span>
-            <span className="shell-sector-count gold-text">
-              {portfolioData.holdings.filter(h => h.sector === s).length} stocks
-            </span>
-          </div>
-        ))
-      ) : (
-        <p className="shell-alert-text">Upload portfolio to see sector breakdown</p>
-      )}
-    </div>
-  </div>
-</div>
-{/* Recent Activity */}
-          <div className="shell-activity">
-            <div className="shell-activity-header">
-              <h3 className="shell-activity-title">Recent Activity Ledger</h3>
-              <button className="shell-view-all">View All Statements</button>
-            </div>
-            <div className="shell-activity-table">
-              <div className="shell-table-header">
-                <span>ASSET / TRANSACTION</span>
-                <span>STATUS</span>
-                <span>DATE</span>
-                <span>IMPACT</span>
-              </div>
-              {recentActivity.map((item, i) => (
-                <div key={i} className="shell-table-row">
-                  <div className="shell-table-asset">
-                    <div className="shell-asset-icon">{item.icon}</div>
-                    <div>
-                      <p className="shell-asset-name">{item.name}</p>
-                      <p className="shell-asset-sub">{item.sub}</p>
+                  {/* Morning briefing */}
+                  <div className="shell-briefing">
+                    <div className="shell-briefing-left">
+                      <p className="shell-briefing-label">MORNING BRIEFING</p>
+                      <h1 className="shell-greeting">
+                        {getGreeting()}<br />
+                        <span className="shell-greeting-name">{firstName}.</span>
+                      </h1>
+                      <p className="shell-briefing-text">
+                        Your sovereign ledger has grown by {avgReturn}% since last week. The Nifty 50 markets are showing strong momentum in IT and Banking sectors.
+                      </p>
+                    </div>
+                    <div className="shell-wealth">
+                      <p className="shell-wealth-label">AGGREGATE WEALTH</p>
+                      <p className="shell-wealth-value">
+                        ₹{totalValue.toLocaleString('en-IN')}
+                        <span className="shell-wealth-decimal">.00</span>
+                      </p>
+                      <p className="shell-wealth-change">
+                        📈 +₹{Math.round(totalValue * 0.024).toLocaleString('en-IN')} ({avgReturn}%)
+                      </p>
                     </div>
                   </div>
-                  <div>
-                    <span className={`shell-status ${item.status.toLowerCase()}`}>{item.status}</span>
+
+                  {/* Middle cards row */}
+                  <div className="shell-cards-row">
+                    {/* Left column - stats */}
+                    <div className="shell-left-col">
+                      {/* Fit Score card */}
+                      <div className="shell-card">
+                        <p className="shell-card-label">PORTFOLIO FIT SCORE</p>
+                        <div className="shell-card-header-row">
+                          <h2 className="shell-fit-score">{portfolioFitScore}</h2>
+                          <div className="shell-verified">🏅</div>
+                        </div>
+                        <div className="shell-score-bar-bg">
+                          <div className="shell-score-bar" style={{ width: `${portfolioFitScore}%` }} />
+                        </div>
+                        <p className="shell-card-sub">
+                          Optimization level is currently in the <span className="gold-text">top {fitTopPercent}%</span> of peer benchmarks.
+                        </p>
+                      </div>
+
+                      {/* Projected Yield */}
+                      <div className="shell-card">
+                        <p className="shell-card-label">PROJECTED ANNUAL YIELD</p>
+                        <h3 className="shell-yield-value">
+                          ₹{Math.round(totalValue * 0.1).toLocaleString('en-IN')}
+                          <span className="shell-yield-change"> +0.8%</span>
+                        </h3>
+                        <div className="shell-quick-btns" style={{ marginTop: '12px' }}>
+                          {['FIXED', 'EQUITY', 'ALT'].map(b => (
+                            <button key={b} className="shell-quick-btn"
+                              onClick={() => sendMessage(`Show me ${b} investments`)}>
+                              {b}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Market Alerts */}
+                      <div className="shell-card">
+                        <p className="shell-card-label">MARKET ALERT 🔔</p>
+                        <p className="shell-alert-text">Nifty 50 is up 1.2% today. IT sector showing strong momentum. Consider increasing tech exposure.</p>
+                      </div>
+                    </div>
+
+                    {/* Center - AI + Chat unified */}
+                    <div className="shell-card shell-card-dark shell-ai-chat">
+                      <div className="shell-insight-header">
+                        <div className="shell-ai-badge">AI</div>
+                        <p className="shell-card-label">PROFITLY INSIGHT ENGINE</p>
+                      </div>
+
+                      <h3 className="shell-insight-title">
+                        Strategic intelligence<br />
+                        for your <em>Nifty 50</em> assets.
+                      </h3>
+
+                      {/* Chat messages */}
+                      <div className="shell-chat-messages">
+                        {messages.length === 0 && (
+                          <div className="shell-empty-chat">
+                            <p>🤖 Ask me anything about your investments, risk levels, or market opportunities.</p>
+                          </div>
+                        )}
+                        {messages.map((msg, i) => (
+                          <div key={i} className={`shell-chat-bubble ${msg.role}`}>
+                            {msg.role === 'assistant' && (
+                              <span className="shell-bubble-label">PROFITLY AI</span>
+                            )}
+                            <p>{msg.content}</p>
+                            {msg.offerings && msg.offerings.slice(0, 2).map((o, j) => (
+                              <div key={j} className="shell-inline-stock">
+                                <div>
+                                  <span className="shell-stock-name">{o.company}</span>
+                                  <span className="shell-stock-meta"> · {o.sector} · ₹{o.latestClose}</span>
+                                </div>
+                                <span className="shell-stock-score">{o.fitScore?.score}/100</span>
+                              </div>
+                            ))}
+                            {msg.suggestions && (
+                              <div className="shell-bubble-chips">
+                                {msg.suggestions.slice(0, 3).map((s, j) => (
+                                  <button key={j} className="shell-chip" onClick={() => sendMessage(s)}>{s}</button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                        {loading && (
+                          <div className="shell-chat-bubble assistant">
+                            <span className="shell-bubble-label">PROFITLY AI</span>
+                            <div className="shell-typing">
+                              <span /><span /><span />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Chat input */}
+                      <div className="shell-chat-input-wrap">
+                        <span>💬</span>
+                        <input
+                          value={input}
+                          onChange={e => setInput(e.target.value)}
+                          onKeyPress={e => e.key === 'Enter' && sendMessage()}
+                          placeholder="Ask Profitly AI about your investments..."
+                        />
+                        <button className="shell-send" onClick={() => sendMessage()}>→</button>
+                      </div>
+
+                      {/* Quick asks */}
+                      <div className="shell-quick-asks">
+                        {['📊 Analyze my portfolio', '⚠️ Check risk levels', '💡 Best opportunities', '📈 Top IT stocks'].map((q, i) => (
+                          <button key={i} className="shell-quick-ask" onClick={() => sendMessage(q)}>{q}</button>
+                        ))}
+                      </div>
+
+                      <button className="shell-rebalance-btn" onClick={() => sendMessage('Should I rebalance my portfolio?')}>
+                        Execute Rebalance →
+                      </button>
+                    </div>
+
+                    {/* Right - Vault Protection */}
+                    <div className="shell-right-col">
+                      <div className="shell-card">
+                        <p className="shell-card-label">VAULT PROTECTION 🔒</p>
+                        <p className="shell-alert-text">{vaultProtectionText}</p>
+                        <p className="shell-alert-text" style={{ marginTop: '8px' }}>{vaultLockText}</p>
+                      </div>
+                      <div className="shell-card">
+                        <p className="shell-card-label">PORTFOLIO HEALTH</p>
+                        <div className="shell-health-items">
+                          {[
+                            { label: 'Diversification', value: '85%', color: 'var(--green)' },
+                            { label: 'Risk Balance', value: '72%', color: 'var(--amber)' },
+                            { label: 'Liquidity', value: '91%', color: 'var(--green)' },
+                          ].map((h, i) => (
+                            <div key={i} className="shell-health-item">
+                              <div className="shell-health-row">
+                                <span className="shell-health-label">{h.label}</span>
+                                <span className="shell-health-val" style={{ color: h.color }}>{h.value}</span>
+                              </div>
+                              <div className="shell-score-bar-bg">
+                                <div className="shell-score-bar" style={{ width: h.value, background: h.color }} />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="shell-card">
+                        <p className="shell-card-label">SECTORS 📊</p>
+                        {filteredHoldings.length > 0 ? (
+                          [...new Set(filteredHoldings.map(h => h.sector))].map((s, i) => (
+                            <div key={i} className="shell-sector-item">
+                              <span className="shell-sector-name">{s}</span>
+                              <span className="shell-sector-count gold-text">
+                                {filteredHoldings.filter(h => h.sector === s).length} stocks
+                              </span>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="shell-alert-text">No holdings found for the current search.</p>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                  <span className="shell-date">{item.date}</span>
-                  <div className="shell-impact">
-                    <p className={`shell-impact-value ${item.positive ? 'positive' : 'negative'}`}>{item.impact}</p>
-                    <p className="shell-impact-sub">{item.growth}</p>
+
+                  {/* Recent Activity */}
+                  <div className="shell-activity">
+                    <div className="shell-activity-header">
+                      <h3 className="shell-activity-title">Recent Activity Ledger</h3>
+                      <button className="shell-view-all" onClick={() => setActiveTopTab('History')}>View Full History</button>
+                    </div>
+                    <div className="shell-activity-table">
+                      <div className="shell-table-header">
+                        <span>ASSET / TRANSACTION</span>
+                        <span>STATUS</span>
+                        <span>DATE</span>
+                        <span>IMPACT</span>
+                      </div>
+                      {filteredActivity.length === 0 && (
+                        <div className="shell-empty-state">No activity matched "{dashboardSearchTerm}".</div>
+                      )}
+                      {filteredActivity.map((item, i) => (
+                        <div key={i} className="shell-table-row">
+                          <div className="shell-table-asset">
+                            <div className="shell-asset-icon">{item.icon}</div>
+                            <div>
+                              <p className="shell-asset-name">{item.name}</p>
+                              <p className="shell-asset-sub">{item.sub}</p>
+                            </div>
+                          </div>
+                          <div>
+                            <span className={`shell-status ${item.status.toLowerCase()}`}>{item.status}</span>
+                          </div>
+                          <span className="shell-date">{item.date}</span>
+                          <div className="shell-impact">
+                            <p className={`shell-impact-value ${item.positive ? 'positive' : 'negative'}`}>{item.impact}</p>
+                            <p className="shell-impact-sub">{item.growth}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {activeTopTab === 'History' && (
+                <div className="shell-tab-view">
+                  <div className="shell-tab-header">
+                    <p className="shell-briefing-label">HISTORY</p>
+                    <h2>Transaction Timeline</h2>
+                    <p>Review all order events, settlement status, and realized impact with live search filtering.</p>
+                  </div>
+                  <div className="shell-activity">
+                    <div className="shell-activity-header">
+                      <h3 className="shell-activity-title">{filteredActivity.length} records found</h3>
+                      <button className="shell-view-all" onClick={() => setSearchInput('')}>Clear Search</button>
+                    </div>
+                    <div className="shell-activity-table">
+                      <div className="shell-table-header">
+                        <span>ASSET / TRANSACTION</span>
+                        <span>STATUS</span>
+                        <span>DATE</span>
+                        <span>IMPACT</span>
+                      </div>
+                      {filteredActivity.length === 0 && (
+                        <div className="shell-empty-state">No history matched "{dashboardSearchTerm}". Try company name, status, or date.</div>
+                      )}
+                      {filteredActivity.map((item, i) => (
+                        <div key={i} className="shell-table-row">
+                          <div className="shell-table-asset">
+                            <div className="shell-asset-icon">{item.icon}</div>
+                            <div>
+                              <p className="shell-asset-name">{item.name}</p>
+                              <p className="shell-asset-sub">{item.sub}</p>
+                            </div>
+                          </div>
+                          <div>
+                            <span className={`shell-status ${item.status.toLowerCase()}`}>{item.status}</span>
+                          </div>
+                          <span className="shell-date">{item.date}</span>
+                          <div className="shell-impact">
+                            <p className={`shell-impact-value ${item.positive ? 'positive' : 'negative'}`}>{item.impact}</p>
+                            <p className="shell-impact-sub">{item.growth}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
-              ))}
-            </div>
-          </div>
+              )}
 
-          </>
+              {activeTopTab === 'Reports' && (
+                <div className="shell-tab-view">
+                  <div className="shell-tab-header">
+                    <p className="shell-briefing-label">REPORTS</p>
+                    <h2>Portfolio Intelligence Reports</h2>
+                    <p>See strategy configuration, risk posture, and portfolio coverage in one place.</p>
+                  </div>
+
+                  <div className="shell-reports-grid">
+                    {filteredReportCards.length === 0 && (
+                      <div className="shell-empty-state">No report cards matched "{dashboardSearchTerm}".</div>
+                    )}
+                    {filteredReportCards.map((card) => (
+                      <div key={card.title} className="shell-card shell-report-card">
+                        <p className="shell-card-label">{card.title}</p>
+                        <h3 className="shell-report-value">{card.value}</h3>
+                        <p className="shell-alert-text">{card.detail}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="shell-card">
+                    <div className="shell-card-header-row">
+                      <p className="shell-card-label">HOLDINGS SNAPSHOT</p>
+                      <button className="shell-view-all" onClick={() => setActiveTopTab('Overview')}>Back to Overview</button>
+                    </div>
+                    {filteredHoldings.length === 0 ? (
+                      <div className="shell-empty-state">No holdings matched "{dashboardSearchTerm}".</div>
+                    ) : (
+                      <div className="shell-report-holdings">
+                        {filteredHoldings.slice(0, 10).map((holding, idx) => (
+                          <div key={`${holding.company}-${idx}`} className="shell-report-holding-row">
+                            <div>
+                              <p className="shell-asset-name">{holding.company}</p>
+                              <p className="shell-asset-sub">{holding.sector}</p>
+                            </div>
+                            <div className="shell-impact">
+                              <p className={`shell-impact-value ${Number(holding.returnPercentage || 0) >= 0 ? 'positive' : 'negative'}`}>
+                                {Number(holding.returnPercentage || 0) >= 0 ? '+' : ''}{Number(holding.returnPercentage || 0).toFixed(2)}%
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
