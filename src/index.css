@@ -247,6 +247,9 @@ body {
 }
 
 .shell-deposit-btn:hover { opacity: 0.85; }
+.shell-deposit-btn.active {
+  box-shadow: 0 0 0 2px rgba(201, 168, 76, 0.25);
+}
 
 .shell-user {
   display: flex;
@@ -400,6 +403,52 @@ body {
   gap: 14px;
 }
 
+.shell-history-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.shell-view-all.shell-danger {
+  color: #f87171;
+}
+
+.shell-chat-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.shell-history-item {
+  background: var(--navy-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.shell-history-item.user {
+  border-left: 3px solid var(--gold);
+}
+
+.shell-history-item.assistant {
+  border-left: 3px solid var(--green);
+}
+
+.shell-history-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+}
+
+.shell-history-item p {
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.5;
+}
+
 .shell-tab-header h2 {
   font-family: var(--app-font);
   font-size: 30px;
@@ -417,6 +466,47 @@ body {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
+}
+
+.shell-report-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.shell-download-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.shell-download-option {
+  background: var(--navy-3);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-muted);
+  font-size: 12px;
+  padding: 7px 12px;
+  cursor: pointer;
+}
+
+.shell-download-option.active {
+  color: var(--gold);
+  border-color: var(--gold);
+  background: var(--gold-dim);
+}
+
+.shell-download-btn {
+  background: linear-gradient(135deg, var(--gold), var(--gold-light));
+  border: none;
+  border-radius: 8px;
+  color: var(--navy);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 8px 12px;
+  cursor: pointer;
 }
 
 .shell-report-card {
@@ -445,6 +535,88 @@ body {
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 10px 12px;
+}
+
+.shell-deposit-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.shell-form-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.shell-form-grid.two-col {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.shell-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.shell-form-field.full-width {
+  grid-column: 1 / -1;
+}
+
+.shell-form-field span {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.shell-form-field input,
+.shell-form-field select,
+.shell-form-field textarea {
+  background: var(--navy-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  padding: 10px 12px;
+  font-size: 13px;
+  outline: none;
+}
+
+.shell-form-field input:focus,
+.shell-form-field select:focus,
+.shell-form-field textarea:focus {
+  border-color: var(--gold);
+}
+
+.shell-form-field textarea {
+  min-height: 88px;
+  resize: vertical;
+}
+
+.shell-deposit-footer {
+  margin-top: 12px;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+}
+
+.shell-deposit-save-btn {
+  background: linear-gradient(135deg, var(--gold), var(--gold-light));
+  border: none;
+  border-radius: 8px;
+  color: var(--navy);
+  padding: 9px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.shell-deposit-error {
+  color: #f87171;
+  font-size: 12px;
+}
+
+.shell-deposit-success {
+  color: var(--green);
+  font-size: 12px;
 }
 
 .shell-content::-webkit-scrollbar { width: 4px; }
@@ -2390,6 +2562,24 @@ select:focus-visible {
     grid-template-columns: 1fr;
   }
 
+  .shell-deposit-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .shell-form-grid.two-col {
+    grid-template-columns: 1fr;
+  }
+
+  .shell-deposit-footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .shell-history-actions {
+    flex-direction: column;
+    align-items: flex-end;
+  }
+
   .login-page {
     flex-direction: column;
     min-height: 100vh;
@@ -2626,6 +2816,42 @@ select:focus-visible {
   color: var(--text);
   align-self: flex-start;
   width: 100%;
+}
+
+.shell-chat-edit-btn {
+  margin-bottom: 6px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  border-radius: 999px;
+  padding: 3px 9px;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.shell-chat-edit-btn:hover {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
+.shell-chat-editing-banner {
+  background: rgba(37, 99, 235, 0.08);
+  border: 1px solid rgba(37, 99, 235, 0.3);
+  border-radius: 8px;
+  padding: 8px 10px;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.shell-chat-editing-banner button {
+  border: none;
+  background: transparent;
+  color: #60a5fa;
+  cursor: pointer;
+  font-size: 11px;
 }
 
 .shell-bubble-label {
