@@ -1397,7 +1397,7 @@ function App({ user, onLogout, onUserUpdate, theme = 'light', onToggleTheme }) {
 
         <footer className="shell-footer-line">
           <span>Profitly Sovereign Ledger (c) 2026 Profitly Technologies Pvt. Ltd.</span>
-          <span>Support: support@profitly.in | +91 80 4567 8900 | Mon-Fri 9:00 AM - 6:00 PM IST</span>
+          <span>Support: support@profitly.in</span>
         </footer>
       </div>
     </div>
