@@ -44,45 +44,6 @@ const CHAT_STORAGE_LIMIT = 120
 const HISTORY_STORAGE_LIMIT = 120
 const RECENT_SEARCH_LIMIT = 12
 
-const DEFAULT_ACTIVITY_HISTORY = [
-  {
-    id: 'seed-tcs',
-    icon: '📈',
-    name: 'TCS Buy Order',
-    sub: 'Tata Consultancy · IT Equity',
-    status: 'SETTLED',
-    date: 'Mar 15, 2026',
-    impact: '+₹12,400',
-    growth: '+4.2% GROWTH',
-    positive: true,
-    assetName: 'Tata Consultancy',
-  },
-  {
-    id: 'seed-hdfc',
-    icon: '💰',
-    name: 'Quarterly Dividend',
-    sub: 'HDFC Bank · Banking',
-    status: 'PENDING',
-    date: 'Mar 12, 2026',
-    impact: '+₹3,120',
-    growth: 'AUTO-INVESTED',
-    positive: true,
-    assetName: 'HDFC Bank',
-  },
-  {
-    id: 'seed-tatamotors',
-    icon: '🏷️',
-    name: 'Tata Motors Sell',
-    sub: 'Tata Motors · Automotive',
-    status: 'SETTLED',
-    date: 'Mar 10, 2026',
-    impact: '-₹8,500',
-    growth: '-1.1% EXIT',
-    positive: false,
-    assetName: 'Tata Motors',
-  },
-]
-
 const formatHistoryDate = (value = new Date()) => new Date(value).toLocaleDateString('en-US', {
   month: 'short',
   day: 'numeric',
@@ -90,6 +51,15 @@ const formatHistoryDate = (value = new Date()) => new Date(value).toLocaleDateSt
 })
 
 const normalizeHistoryStatus = (status) => (String(status || '').toUpperCase() === 'SETTLED' ? 'SETTLED' : 'PENDING')
+const formatCurrency = (value = 0) => `₹${Math.round(toNumber(value)).toLocaleString('en-IN')}`
+const normalizeHoldingKey = (value = '') => String(value).trim().toLowerCase().replace(/[^a-z0-9]+/g, '-')
+const getHoldingKey = (holding = {}, fallback = '') => {
+  const provided = String(holding.holdingKey || '').trim()
+  if (provided) return normalizeHoldingKey(provided)
+  const primary = String(holding.company || holding.ticker || holding.assetName || fallback || 'holding').trim()
+  const sector = String(holding.sector || '').trim()
+  return normalizeHoldingKey(`${primary}-${sector}`.replace(/-+$/, ''))
+}
 
 const normalizeRecentSearches = (entries = []) => {
   if (!Array.isArray(entries)) return []
@@ -114,8 +84,9 @@ const normalizeActivityHistory = (rows = []) => {
         ? Number.parseFloat(rawImpact.replace(/[^0-9.-]/g, ''))
         : 0
       const safeImpactNumber = Number.isFinite(impactNumber) ? impactNumber : 0
-      const positive = typeof row.positive === 'boolean' ? row.positive : safeImpactNumber >= 0
-      const fallbackImpact = `${positive ? '+' : '-'}₹${Math.round(Math.abs(safeImpactNumber)).toLocaleString('en-IN')}`
+      const investedAmount = toNumber(row.investedAmount || row.entryPrice || safeImpactNumber)
+      const currentAmount = toNumber(row.currentAmount || row.currentValue)
+      const positive = typeof row.positive === 'boolean' ? row.positive : true
       const assetName = String(
         row.assetName
           || row.company
@@ -123,7 +94,8 @@ const normalizeActivityHistory = (rows = []) => {
           || row.name
           || `Holding ${index + 1}`
       ).trim()
-      const idBase = String(assetName || `history-${index}`).replace(/[^a-z0-9]+/gi, '-').toLowerCase()
+      const holdingKey = getHoldingKey(row, `holding-${index + 1}`)
+      const idBase = String(holdingKey || `history-${index}`).replace(/[^a-z0-9]+/gi, '-').toLowerCase()
 
       return {
         id: row.id || `activity-${idBase}-${index}`,
@@ -132,17 +104,23 @@ const normalizeActivityHistory = (rows = []) => {
         sub: row.sub || `${assetName} · Portfolio`,
         status,
         date: row.date || formatHistoryDate(),
-        impact: rawImpact || fallbackImpact,
-        growth: row.growth || (status === 'SETTLED' ? 'SETTLED' : 'AWAITING SETTLEMENT'),
+        impact: rawImpact || formatCurrency(investedAmount),
+        growth: row.growth || (currentAmount > 0 ? `Current ${formatCurrency(currentAmount)}` : (status === 'SETTLED' ? 'SETTLED' : 'AWAITING SETTLEMENT')),
         positive,
         assetName,
+        holdingKey,
+        investedAmount,
+        currentAmount,
       }
     })
     .slice(0, HISTORY_STORAGE_LIMIT)
 }
 
-const buildHistoryFromHoldings = (holdings = []) => {
+const buildHistoryFromHoldings = (holdings = [], existingHistory = []) => {
   if (!Array.isArray(holdings) || holdings.length === 0) return []
+  const existingRows = normalizeActivityHistory(existingHistory)
+  const existingMap = new Map(existingRows.map((row, index) => [getHoldingKey(row, `existing-${index}`), row]))
+
   return holdings
     .filter(Boolean)
     .slice(0, HISTORY_STORAGE_LIMIT)
@@ -151,28 +129,33 @@ const buildHistoryFromHoldings = (holdings = []) => {
       const sector = String(holding.sector || 'Uncategorized').trim()
       const entryPrice = toNumber(holding.entryPrice)
       const currentValue = toNumber(holding.currentValue)
+      const investedAmount = entryPrice > 0 ? entryPrice : toNumber(holding.minInvestment)
+      const currentAmount = currentValue > 0 ? currentValue : toNumber(holding.valuation)
       const hasValidReturn = Number.isFinite(Number.parseFloat(holding.returnPercentage))
       const returnPercentage = hasValidReturn
         ? toNumber(holding.returnPercentage)
         : entryPrice > 0
           ? Number((((currentValue - entryPrice) / entryPrice) * 100).toFixed(2))
           : 0
-      const impactValue = entryPrice > 0 ? currentValue - entryPrice : currentValue
-      const positive = impactValue >= 0
-      const status = index % 3 === 1 ? 'PENDING' : 'SETTLED'
-      const idBase = String(holding.ticker || company).replace(/[^a-z0-9]+/gi, '-').toLowerCase()
+      const holdingKey = getHoldingKey(holding, `holding-${index + 1}`)
+      const existing = existingMap.get(holdingKey)
+      const status = normalizeHistoryStatus(existing?.status || 'PENDING')
+      const idBase = String(holdingKey || company).replace(/[^a-z0-9]+/gi, '-').toLowerCase()
 
       return {
-        id: `holding-${idBase}-${index}`,
-        icon: positive ? '📈' : '📉',
-        name: `${company} Position`,
+        id: existing?.id || `holding-${idBase}-${index}`,
+        icon: returnPercentage >= 0 ? '📈' : '📉',
+        name: `${company} Holding`,
         sub: `${company} · ${sector}`,
         status,
-        date: formatHistoryDate(new Date(Date.now() - (index * 24 * 60 * 60 * 1000))),
-        impact: `${positive ? '+' : '-'}₹${Math.round(Math.abs(impactValue)).toLocaleString('en-IN')}`,
-        growth: `${returnPercentage >= 0 ? '+' : ''}${returnPercentage.toFixed(2)}% MOVE`,
-        positive,
+        date: existing?.date || formatHistoryDate(new Date(Date.now() - (index * 24 * 60 * 60 * 1000))),
+        impact: formatCurrency(investedAmount),
+        growth: `Current ${formatCurrency(currentAmount)} · ${returnPercentage >= 0 ? '+' : ''}${returnPercentage.toFixed(2)}%`,
+        positive: true,
         assetName: company,
+        holdingKey,
+        investedAmount,
+        currentAmount,
       }
     })
 }
@@ -272,7 +255,6 @@ function App({ user, onLogout, onUserUpdate, theme = 'light', onToggleTheme }) {
   const [depositStatus, setDepositStatus] = useState({ type: '', message: '' })
   const [activityHistory, setActivityHistory] = useState([])
   const [activityHistoryReady, setActivityHistoryReady] = useState(false)
-  const [activityNeedsSeed, setActivityNeedsSeed] = useState(false)
   const [recentStockSearches, setRecentStockSearches] = useState([])
   const [recentSearchReady, setRecentSearchReady] = useState(false)
 
@@ -444,13 +426,11 @@ function App({ user, onLogout, onUserUpdate, theme = 'light', onToggleTheme }) {
 
   useEffect(() => {
     setActivityHistoryReady(false)
-    setActivityNeedsSeed(false)
     try {
       const key = `profitly_activity_${currentUser?.id || 'demo'}`
       const saved = localStorage.getItem(key)
       if (!saved) {
         setActivityHistory([])
-        setActivityNeedsSeed(true)
       } else {
         const parsed = JSON.parse(saved)
         const normalized = normalizeActivityHistory(parsed)
@@ -458,7 +438,6 @@ function App({ user, onLogout, onUserUpdate, theme = 'light', onToggleTheme }) {
       }
     } catch {
       setActivityHistory([])
-      setActivityNeedsSeed(true)
     } finally {
       setActivityHistoryReady(true)
     }
@@ -475,12 +454,13 @@ function App({ user, onLogout, onUserUpdate, theme = 'light', onToggleTheme }) {
   }, [activityHistory, currentUser?.id, activityHistoryReady])
 
   useEffect(() => {
-    if (!activityHistoryReady || !activityNeedsSeed) return
+    if (!activityHistoryReady) return
     if (!Array.isArray(portfolioData?.holdings)) return
-    const seededRows = buildHistoryFromHoldings(portfolioData.holdings)
-    setActivityHistory(seededRows.length > 0 ? seededRows : DEFAULT_ACTIVITY_HISTORY)
-    setActivityNeedsSeed(false)
-  }, [portfolioData?.holdings, activityHistoryReady, activityNeedsSeed])
+    setActivityHistory((prev) => {
+      const syncedRows = buildHistoryFromHoldings(portfolioData.holdings, prev)
+      return normalizeActivityHistory(syncedRows)
+    })
+  }, [portfolioData?.holdings, activityHistoryReady])
 
   useEffect(() => {
     setRecentSearchReady(false)
@@ -636,17 +616,14 @@ function App({ user, onLogout, onUserUpdate, theme = 'light', onToggleTheme }) {
         ? {
           ...row,
           status: normalizedStatus,
-          growth: normalizedStatus === 'SETTLED'
-            ? String(row.growth || '').replace('AWAITING SETTLEMENT', 'SETTLED')
-            : 'AWAITING SETTLEMENT',
+          growth: `${row.currentAmount > 0 ? `Current ${formatCurrency(row.currentAmount)} · ` : ''}${normalizedStatus === 'SETTLED' ? 'PAYMENT SETTLED' : 'AWAITING SETTLEMENT'}`,
         }
         : row
     )))
   }
 
   const clearActivityHistory = () => {
-    setActivityHistory([])
-    setActivityNeedsSeed(false)
+    setActivityHistory(buildHistoryFromHoldings(holdings, []))
   }
 
   const clearRecentStockSearches = () => {
@@ -813,7 +790,7 @@ function App({ user, onLogout, onUserUpdate, theme = 'light', onToggleTheme }) {
 
   const filteredHoldings = normalizedDashboardSearch
     ? holdings.filter((holding) =>
-      [holding.company, holding.sector, holding.stage]
+      [holding.company, holding.sector, holding.stage, holding.entryPrice, holding.currentValue, holding.minInvestment, holding.valuation]
         .some((value) => String(value || '').toLowerCase().includes(normalizedDashboardSearch)))
     : holdings
 
@@ -1159,6 +1136,37 @@ function App({ user, onLogout, onUserUpdate, theme = 'light', onToggleTheme }) {
                     </div>
                   )}
 
+                  {dashboardSearchTerm && (
+                    <div className="shell-card shell-holding-search-card">
+                      <div className="shell-card-header-row">
+                        <p className="shell-card-label">HOLDING SEARCH MATCHES</p>
+                        <span className="shell-holding-search-count">{filteredHoldings.length} matched</span>
+                      </div>
+                      {filteredHoldings.length === 0 ? (
+                        <div className="shell-empty-state">No user holdings matched "{dashboardSearchTerm}".</div>
+                      ) : (
+                        <div className="shell-report-holdings">
+                          {filteredHoldings.slice(0, 8).map((holding, idx) => (
+                            <div key={`search-holding-${holding.company}-${idx}`} className="shell-report-holding-row">
+                              <div>
+                                <p className="shell-asset-name">{holding.company}</p>
+                                <p className="shell-asset-sub">
+                                  {holding.sector} · Invested {formatCurrency(holding.entryPrice)}
+                                </p>
+                              </div>
+                              <div className="shell-impact">
+                                <p className={`shell-impact-value ${Number(holding.returnPercentage || 0) >= 0 ? 'positive' : 'negative'}`}>
+                                  {Number(holding.returnPercentage || 0) >= 0 ? '+' : ''}{Number(holding.returnPercentage || 0).toFixed(2)}%
+                                </p>
+                                <p className="shell-impact-sub">Current {formatCurrency(holding.currentValue)}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {/* Morning briefing */}
                   <div className="shell-briefing">
                     <div className="shell-briefing-left">
@@ -1428,7 +1436,7 @@ function App({ user, onLogout, onUserUpdate, theme = 'light', onToggleTheme }) {
                       <h3 className="shell-activity-title">{filteredActivity.length} records found</h3>
                       <div className="shell-history-actions">
                         <button className="shell-view-all" onClick={() => setSearchInput('')}>Clear Search</button>
-                        <button className="shell-view-all shell-danger" onClick={clearActivityHistory}>Clear History</button>
+                        <button className="shell-view-all shell-danger" onClick={clearActivityHistory}>Reset History</button>
                       </div>
                     </div>
                     <div className="shell-history-recent-wrap">
@@ -1556,6 +1564,9 @@ function App({ user, onLogout, onUserUpdate, theme = 'light', onToggleTheme }) {
                             <div>
                               <p className="shell-asset-name">{holding.company}</p>
                               <p className="shell-asset-sub">{holding.sector}</p>
+                              <p className="shell-asset-sub">
+                                Invested {formatCurrency(holding.entryPrice)} · Current {formatCurrency(holding.currentValue)}
+                              </p>
                             </div>
                             <div className="shell-impact">
                               <p className={`shell-impact-value ${Number(holding.returnPercentage || 0) >= 0 ? 'positive' : 'negative'}`}>

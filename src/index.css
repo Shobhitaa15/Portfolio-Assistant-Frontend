@@ -456,6 +456,16 @@ body {
   color: var(--text-muted);
 }
 
+.shell-holding-search-card {
+  margin-top: -8px;
+}
+
+.shell-holding-search-count {
+  font-size: 11px;
+  color: var(--gold);
+  letter-spacing: 0.6px;
+}
+
 .shell-empty-state {
   padding: 14px;
   font-size: 13px;
