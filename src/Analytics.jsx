@@ -73,6 +73,7 @@ const getStdDev = (numbers) => {
 export default function Analytics({ portfolio }) {
   const [activeTab, setActiveTab] = useState('overview')
   const [now, setNow] = useState(() => new Date())
+  const [activeSectorName, setActiveSectorName] = useState('')
 
   useEffect(() => {
     const intervalId = setInterval(() => setNow(new Date()), 1000)
@@ -136,6 +137,22 @@ export default function Analytics({ portfolio }) {
       .map(([name, value]) => ({ name, value: Number(value.toFixed(2)) }))
       .sort((a, b) => b.value - a.value)
   }, [holdings])
+
+  const effectiveSectorName = sectorData.some((sector) => sector.name === activeSectorName)
+    ? activeSectorName
+    : (sectorData[0]?.name || '')
+
+  const activeSectorStocks = useMemo(() => {
+    if (!effectiveSectorName) return []
+    const unique = new Set(
+      holdings
+        .filter((holding) => holding.sector === effectiveSectorName)
+        .map((holding) => holding.company)
+        .filter(Boolean)
+    )
+
+    return Array.from(unique)
+  }, [holdings, effectiveSectorName])
 
   const returnData = useMemo(() => {
     if (!holdings.length) return []
@@ -333,6 +350,8 @@ export default function Analytics({ portfolio }) {
                   dataKey="value"
                   label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                   labelLine={false}
+                  onMouseEnter={(entry) => setActiveSectorName(entry?.name || '')}
+                  onClick={(entry) => setActiveSectorName(entry?.name || '')}
                 >
                   {sectorData.map((_, index) => (
                     <Cell key={index} fill={COLORS[index % COLORS.length]} />
@@ -344,6 +363,20 @@ export default function Analytics({ portfolio }) {
                 />
               </PieChart>
             </ResponsiveContainer>
+            <div className="analytics-sector-focus">
+              <p className="analytics-sector-focus-title">
+                {effectiveSectorName ? `Selected Sector: ${effectiveSectorName}` : 'Move over the pie to inspect a sector'}
+              </p>
+              {activeSectorStocks.length > 0 ? (
+                <div className="analytics-sector-stocks">
+                  {activeSectorStocks.slice(0, 12).map((stockName, index) => (
+                    <span key={`${stockName}-${index}`} className="analytics-sector-stock-chip">{stockName}</span>
+                  ))}
+                </div>
+              ) : (
+                <p className="analytics-sector-empty">Click or hover over a pie slice to see stocks in that sector.</p>
+              )}
+            </div>
           </div>
 
           <div className="chart-card">

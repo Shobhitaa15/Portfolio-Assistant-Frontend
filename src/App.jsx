@@ -146,6 +146,8 @@ function App({ user, onLogout, onUserUpdate, theme = 'light', onToggleTheme }) {
   const [marketError, setMarketError] = useState('')
   const [marketSearch, setMarketSearch] = useState('')
   const [marketSector, setMarketSector] = useState('All')
+  const [niftyTickerRows, setNiftyTickerRows] = useState([])
+  const [niftyTickerStatus, setNiftyTickerStatus] = useState('Loading Nifty 50 ticker...')
 
   const firstName = currentUser?.name?.split(' ')[0] || 'Investor'
 
@@ -227,12 +229,35 @@ function App({ user, onLogout, onUserUpdate, theme = 'light', onToggleTheme }) {
     setMarketLoading(false)
   }, [marketSearch, marketSector])
 
+  const fetchNiftyTicker = useCallback(async () => {
+    try {
+      const params = new URLSearchParams({ limit: '20' })
+      const response = await fetch(`${apiUrl('/api/chat/markets')}?${params.toString()}`)
+      const data = await response.json()
+      if (!response.ok || data.error) throw new Error(data.error || 'Failed to load ticker')
+
+      const rows = Array.isArray(data.markets) ? data.markets : []
+      setNiftyTickerRows(rows)
+      setNiftyTickerStatus(rows.length > 0 ? '' : 'No Nifty 50 ticker data available right now.')
+    } catch (error) {
+      console.log('Nifty ticker fetch error:', error)
+      setNiftyTickerRows([])
+      setNiftyTickerStatus('Unable to load Nifty 50 ticker right now.')
+    }
+  }, [])
+
   useEffect(() => {
     const timer = setTimeout(() => {
       fetchPortfolio()
     }, 0)
     return () => clearTimeout(timer)
   }, [fetchPortfolio])
+
+  useEffect(() => {
+    fetchNiftyTicker()
+    const intervalId = setInterval(fetchNiftyTicker, 60000)
+    return () => clearInterval(intervalId)
+  }, [fetchNiftyTicker])
 
   useEffect(() => {
     if (activeNav !== 'Markets') return
@@ -586,6 +611,7 @@ function App({ user, onLogout, onUserUpdate, theme = 'light', onToggleTheme }) {
     currency: currentUser?.currency || userSettings?.profile?.currency || 'INR',
     userId: currentUser?.id || 'demo',
   }
+  const tickerDisplayRows = niftyTickerRows.slice(0, 20)
 
   return (
     <div className="app-shell">
@@ -726,6 +752,24 @@ function App({ user, onLogout, onUserUpdate, theme = 'light', onToggleTheme }) {
             </div>
           )}
         </header>
+
+        <div className="shell-ticker-strip" aria-label="Nifty 50 live ticker">
+          {tickerDisplayRows.length > 0 ? (
+            <div className="shell-ticker-track">
+              {[...tickerDisplayRows, ...tickerDisplayRows].map((row, index) => (
+                <span key={`${row.ticker}-${index}`} className="shell-ticker-item">
+                  <strong>{row.ticker}</strong>
+                  <span>INR {Number(row.latestClose || 0).toLocaleString('en-IN')}</span>
+                  <span className={Number(row.returnPercent || 0) >= 0 ? 'up' : 'down'}>
+                    {Number(row.returnPercent || 0) >= 0 ? '+' : ''}{Number(row.returnPercent || 0).toFixed(2)}%
+                  </span>
+                </span>
+              ))}
+            </div>
+          ) : (
+            <div className="shell-ticker-status">{niftyTickerStatus}</div>
+          )}
+        </div>
 
         {/* Dashboard content */}
         <div className="shell-content">
@@ -1350,6 +1394,11 @@ function App({ user, onLogout, onUserUpdate, theme = 'light', onToggleTheme }) {
             </>
           )}
         </div>
+
+        <footer className="shell-footer-line">
+          <span>Profitly Sovereign Ledger (c) 2026 Profitly Technologies Pvt. Ltd.</span>
+          <span>Support: support@profitly.in | +91 80 4567 8900 | Mon-Fri 9:00 AM - 6:00 PM IST</span>
+        </footer>
       </div>
     </div>
   )
