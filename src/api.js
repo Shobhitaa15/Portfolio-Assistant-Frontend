@@ -16,3 +16,18 @@ export const apiUrl = (path = '') => {
   }
   return `${API_BASE_URL}${path}`;
 };
+
+export const getAuthToken = () => {
+  if (typeof window === 'undefined') return '';
+  return localStorage.getItem('token') || '';
+};
+
+export const withAuthHeaders = (headers = {}) => {
+  const token = getAuthToken();
+  if (!token) return { ...headers };
+
+  return {
+    ...headers,
+    Authorization: `Bearer ${token}`,
+  };
+};

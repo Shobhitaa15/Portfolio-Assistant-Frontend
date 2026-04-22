@@ -1,14 +1,13 @@
-import { useState, useEffect } from 'react'
-import { apiUrl } from './api'
+import { useMemo, useState } from 'react'
+import { apiUrl, withAuthHeaders } from './api'
 
 const SECTORS = ['IT', 'Banking', 'Healthcare', 'Automobile', 'Oil & Gas', 'Consumer Goods', 'Metals', 'Financial']
 const emptyHolding = { company: '', sector: '', entryPrice: '', currentValue: '' }
 
-export default function OnboardingModal({ userId, onComplete, onSkip }) {
+export default function OnboardingModal({ onComplete, onSkip }) {
   const [step, setStep] = useState(1)
   const [riskProfile, setRiskProfile] = useState({ tolerance: '', horizon: '', goal: '' })
   const [holdings, setHoldings] = useState([{ ...emptyHolding }])
-  const [suggestions, setSuggestions] = useState([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -20,11 +19,10 @@ export default function OnboardingModal({ userId, onComplete, onSkip }) {
 
   // Generate quick, real-time suggestions based on entered holdings.
   // This helps the user see AI-style insights as they type.
-  useEffect(() => {
+  const suggestions = useMemo(() => {
     const valid = holdings.filter(h => h.company && h.sector && h.entryPrice && h.currentValue)
     if (valid.length === 0) {
-      setSuggestions([])
-      return
+      return []
     }
 
     const sectors = Array.from(new Set(valid.map(h => h.sector)))
@@ -56,7 +54,7 @@ export default function OnboardingModal({ userId, onComplete, onSkip }) {
       newSuggestions.push(`Your current average return is ${avgReturn.toFixed(1)}% across the holdings.`)
     }
 
-    setSuggestions(newSuggestions)
+    return newSuggestions
   }, [holdings])
 
   const savePortfolio = async () => {
@@ -66,9 +64,8 @@ export default function OnboardingModal({ userId, onComplete, onSkip }) {
       if (validHoldings.length > 0) {
         await fetch(apiUrl('/api/portfolio/save'), {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: withAuthHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify({
-            userId,
             riskProfile,
             holdings: validHoldings.map(h => ({
               ...h,

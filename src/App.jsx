@@ -1,7 +1,7 @@
 ﻿import { useState, useEffect, useCallback } from 'react'
 import './index.css'
 import Portfolio from './Portfolio'
-import { apiUrl } from './api'
+import { apiUrl, withAuthHeaders } from './api'
 import Analytics from './Analytics'
 import Settings from './Settings'
 import Vault from './Vault'
@@ -87,14 +87,15 @@ function App({ user, onLogout, onUserUpdate, theme = 'light', onToggleTheme }) {
 
   const fetchPortfolio = useCallback(async () => {
     try {
-      const params = new URLSearchParams({ userId: currentUser?.id || 'demo' })
-      const res = await fetch(`${apiUrl('/api/portfolio/get')}?${params.toString()}`)
+      const res = await fetch(apiUrl('/api/portfolio/get'), {
+        headers: withAuthHeaders(),
+      })
       const data = await res.json()
       setPortfolioData(data.portfolio || null)
     } catch (e) {
       console.log('Portfolio fetch error:', e)
     }
-  }, [currentUser?.id])
+  }, [])
 
   const fetchMarkets = useCallback(async () => {
     setMarketLoading(true)
@@ -158,11 +159,10 @@ function App({ user, onLogout, onUserUpdate, theme = 'light', onToggleTheme }) {
     try {
       const response = await fetch(apiUrl('/api/chat'), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: withAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
           message: messageText,
-          sessionHistory: nextSessionHistory,
-          userId: currentUser?.id || 'demo'
+          sessionHistory: nextSessionHistory
         })
       })
       const data = await response.json()
@@ -399,12 +399,14 @@ function App({ user, onLogout, onUserUpdate, theme = 'light', onToggleTheme }) {
             <Analytics portfolio={portfolioData} />
           ) : activeNav === 'Settings' ? (
             <Settings
+              key={`settings-${currentUser?.id || 'demo'}`}
               user={currentUser}
               userId={currentUser?.id || 'demo'}
               onProfileUpdate={handleProfileUpdate}
             />
           ) : activeNav === 'Vault' ? (
             <Vault
+              key={`vault-${currentUser?.id || 'demo'}`}
               user={currentUser}
               userId={currentUser?.id || 'demo'}
               onSave={handleVaultSave}

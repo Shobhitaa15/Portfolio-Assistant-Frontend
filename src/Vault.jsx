@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 
 const defaultVault = (user) => ({
   emergencyBufferPercent: 12,
@@ -18,29 +18,27 @@ const toNumber = (value, fallback = 0) => {
   return Number.isFinite(parsed) ? parsed : fallback
 }
 
+const loadVaultFromStorage = (storageKey, user) => {
+  const defaults = defaultVault(user)
+
+  try {
+    const raw = localStorage.getItem(storageKey)
+    if (!raw) return defaults
+
+    const parsed = JSON.parse(raw)
+    return { ...defaults, ...(parsed || {}) }
+  } catch {
+    return defaults
+  }
+}
+
 export default function Vault({ user, userId = 'demo', onSave }) {
   const storageKey = useMemo(() => `profitly_vault_${userId}`, [userId])
+  const initialVault = loadVaultFromStorage(storageKey, user)
 
-  const [vault, setVault] = useState(defaultVault(user))
+  const [vault, setVault] = useState(initialVault)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
-
-  useEffect(() => {
-    const defaults = defaultVault(user)
-
-    try {
-      const raw = localStorage.getItem(storageKey)
-      if (!raw) {
-        setVault(defaults)
-        return
-      }
-
-      const parsed = JSON.parse(raw)
-      setVault({ ...defaults, ...(parsed || {}) })
-    } catch {
-      setVault(defaults)
-    }
-  }, [storageKey, user])
 
   const updateVault = (field, value) => {
     setVault((prev) => ({ ...prev, [field]: value }))

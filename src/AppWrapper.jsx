@@ -36,7 +36,9 @@ export default function AppWrapper() {
 
   const handleLogout = () => {
     localStorage.removeItem('token')
+    localStorage.removeItem('profitly_token')
     localStorage.removeItem('user')
+    localStorage.removeItem('profitly_user')
     localStorage.removeItem('onboarded')
     setUser(null)
   }

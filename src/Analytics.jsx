@@ -106,7 +106,7 @@ export default function Analytics({ portfolio }) {
     () => (toNumber(portfolio?.totalValue) > 0
       ? toNumber(portfolio.totalValue)
       : holdings.reduce((sum, holding) => sum + holding.currentValue, 0)),
-    [portfolio?.totalValue, holdings]
+    [portfolio, holdings]
   )
 
   const investedValue = useMemo(

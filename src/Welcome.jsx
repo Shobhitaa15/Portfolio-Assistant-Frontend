@@ -1,5 +1,3 @@
-import { useState } from 'react'
-
 export default function Welcome({ onProceed }) {
   return (
     <div className="modal-overlay">

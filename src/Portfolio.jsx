@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { apiUrl } from './api'
+import { apiUrl, withAuthHeaders } from './api'
 
 const SECTORS = ['Fintech', 'Healthcare', 'Clean Energy', 'Edtech', 'Retail Tech', 'SaaS', 'Real Estate', 'Manufacturing', 'Other']
 
@@ -57,7 +57,7 @@ const getHoldingsFromJson = (data) => {
   return []
 }
 
-function Portfolio({ userId, onBack, setPortfolio, theme = 'light', onToggleTheme }) {
+function Portfolio({ onBack, setPortfolio, theme = 'light', onToggleTheme }) {
   const pageRef = useRef(null)
   const quickJsonInputRef = useRef(null)
   const [tab, setTab] = useState('manual')
@@ -174,9 +174,8 @@ function Portfolio({ userId, onBack, setPortfolio, theme = 'light', onToggleThem
     try {
       const response = await fetch(apiUrl('/api/portfolio/save'), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: withAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
-          userId,
           holdings: holdings.map((h) => ({
             ...h,
             entryPrice: Number.parseFloat(h.entryPrice),

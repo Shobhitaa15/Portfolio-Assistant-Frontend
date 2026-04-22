@@ -36,8 +36,8 @@ export default function Login({ onLogin }) {
       if (data.error) {
         setError(`⚠️ ${data.error}`)
       } else {
-        localStorage.setItem('profitly_token', data.token)
-        localStorage.setItem('profitly_user', JSON.stringify(data.user))
+        localStorage.setItem('token', data.token)
+        localStorage.setItem('user', JSON.stringify(data.user))
         onLogin(data.user)
       }
     } catch {

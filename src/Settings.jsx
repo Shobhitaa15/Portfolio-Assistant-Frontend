@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 
 const SECTORS = ['IT', 'Banking', 'Healthcare', 'Automobile', 'Oil & Gas', 'Consumer Goods', 'Metals', 'Financial', 'Insurance', 'Infrastructure', 'Energy', 'Manufacturing']
 
@@ -27,49 +27,41 @@ const toNumber = (value, fallback = 0) => {
   return Number.isFinite(parsed) ? parsed : fallback
 }
 
+const loadSettingsFromStorage = (storageKey, user) => {
+  const defaults = defaultSettings(user)
+
+  try {
+    const raw = localStorage.getItem(storageKey)
+    if (!raw) return defaults
+
+    const parsed = JSON.parse(raw)
+    return {
+      profile: { ...defaults.profile, ...(parsed.profile || {}) },
+      riskTolerance: toNumber(parsed.riskTolerance, defaults.riskTolerance),
+      selectedSectors: Array.isArray(parsed.selectedSectors) && parsed.selectedSectors.length > 0
+        ? parsed.selectedSectors
+        : defaults.selectedSectors,
+      investmentMin: toNumber(parsed.investmentMin, defaults.investmentMin),
+      investmentMax: toNumber(parsed.investmentMax, defaults.investmentMax),
+      notifications: { ...defaults.notifications, ...(parsed.notifications || {}) },
+    }
+  } catch {
+    return defaults
+  }
+}
+
 export default function Settings({ user, userId = 'demo', onProfileUpdate }) {
   const storageKey = useMemo(() => `profitly_settings_${userId}`, [userId])
+  const initialSettings = loadSettingsFromStorage(storageKey, user)
 
-  const [profile, setProfile] = useState(defaultSettings(user).profile)
-  const [riskTolerance, setRiskTolerance] = useState(50)
-  const [selectedSectors, setSelectedSectors] = useState(['IT', 'Banking'])
-  const [investmentMin, setInvestmentMin] = useState(10000)
-  const [investmentMax, setInvestmentMax] = useState(100000)
-  const [notifications, setNotifications] = useState(defaultSettings(user).notifications)
+  const [profile, setProfile] = useState(initialSettings.profile)
+  const [riskTolerance, setRiskTolerance] = useState(initialSettings.riskTolerance)
+  const [selectedSectors, setSelectedSectors] = useState(initialSettings.selectedSectors)
+  const [investmentMin, setInvestmentMin] = useState(initialSettings.investmentMin)
+  const [investmentMax, setInvestmentMax] = useState(initialSettings.investmentMax)
+  const [notifications, setNotifications] = useState(initialSettings.notifications)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
-
-  useEffect(() => {
-    const defaults = defaultSettings(user)
-
-    try {
-      const raw = localStorage.getItem(storageKey)
-      if (!raw) {
-        setProfile(defaults.profile)
-        setRiskTolerance(defaults.riskTolerance)
-        setSelectedSectors(defaults.selectedSectors)
-        setInvestmentMin(defaults.investmentMin)
-        setInvestmentMax(defaults.investmentMax)
-        setNotifications(defaults.notifications)
-        return
-      }
-
-      const parsed = JSON.parse(raw)
-      setProfile({ ...defaults.profile, ...(parsed.profile || {}) })
-      setRiskTolerance(toNumber(parsed.riskTolerance, defaults.riskTolerance))
-      setSelectedSectors(Array.isArray(parsed.selectedSectors) && parsed.selectedSectors.length > 0 ? parsed.selectedSectors : defaults.selectedSectors)
-      setInvestmentMin(toNumber(parsed.investmentMin, defaults.investmentMin))
-      setInvestmentMax(toNumber(parsed.investmentMax, defaults.investmentMax))
-      setNotifications({ ...defaults.notifications, ...(parsed.notifications || {}) })
-    } catch {
-      setProfile(defaults.profile)
-      setRiskTolerance(defaults.riskTolerance)
-      setSelectedSectors(defaults.selectedSectors)
-      setInvestmentMin(defaults.investmentMin)
-      setInvestmentMax(defaults.investmentMax)
-      setNotifications(defaults.notifications)
-    }
-  }, [storageKey, user])
 
   const toggleSector = (sector) => {
     setSelectedSectors((prev) =>
