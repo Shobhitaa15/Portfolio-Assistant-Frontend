@@ -472,10 +472,61 @@ body {
   display: flex;
   align-items: center;
   gap: 10px;
+  flex-wrap: wrap;
 }
 
 .shell-view-all.shell-danger {
   color: #f87171;
+}
+
+.shell-history-recent-wrap {
+  padding: 14px 24px;
+  border-bottom: 1px solid var(--border);
+  background: var(--navy-3);
+}
+
+.shell-history-recent-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.shell-history-recent-title {
+  font-family: var(--app-font);
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+}
+
+.shell-history-recent-empty {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.shell-history-search-chips {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.shell-history-search-chip {
+  border: 1px solid var(--border);
+  background: var(--navy-2);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s;
+}
+
+.shell-history-search-chip:hover {
+  border-color: var(--gold);
+  color: var(--gold);
 }
 
 .shell-chat-history-list {
@@ -1146,6 +1197,49 @@ body {
   background: rgba(245,158,11,0.1);
   color: var(--amber);
   border: 1px solid rgba(245,158,11,0.2);
+}
+
+.shell-history-status-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.shell-settlement-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.shell-settlement-btn {
+  border: 1px solid var(--border);
+  background: var(--navy-2);
+  color: var(--text-dim);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.shell-settlement-btn:hover {
+  color: var(--text);
+  border-color: var(--gold);
+}
+
+.shell-settlement-btn.settled.active {
+  border-color: rgba(16,185,129,0.4);
+  background: rgba(16,185,129,0.12);
+  color: var(--green);
+}
+
+.shell-settlement-btn.pending.active {
+  border-color: rgba(245,158,11,0.4);
+  background: rgba(245,158,11,0.12);
+  color: var(--amber);
 }
 
 .shell-date {

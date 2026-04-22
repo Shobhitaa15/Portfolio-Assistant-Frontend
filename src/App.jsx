@@ -41,6 +41,141 @@ const summarizePortfolio = (holdings = []) => {
 }
 
 const CHAT_STORAGE_LIMIT = 120
+const HISTORY_STORAGE_LIMIT = 120
+const RECENT_SEARCH_LIMIT = 12
+
+const DEFAULT_ACTIVITY_HISTORY = [
+  {
+    id: 'seed-tcs',
+    icon: '📈',
+    name: 'TCS Buy Order',
+    sub: 'Tata Consultancy · IT Equity',
+    status: 'SETTLED',
+    date: 'Mar 15, 2026',
+    impact: '+₹12,400',
+    growth: '+4.2% GROWTH',
+    positive: true,
+    assetName: 'Tata Consultancy',
+  },
+  {
+    id: 'seed-hdfc',
+    icon: '💰',
+    name: 'Quarterly Dividend',
+    sub: 'HDFC Bank · Banking',
+    status: 'PENDING',
+    date: 'Mar 12, 2026',
+    impact: '+₹3,120',
+    growth: 'AUTO-INVESTED',
+    positive: true,
+    assetName: 'HDFC Bank',
+  },
+  {
+    id: 'seed-tatamotors',
+    icon: '🏷️',
+    name: 'Tata Motors Sell',
+    sub: 'Tata Motors · Automotive',
+    status: 'SETTLED',
+    date: 'Mar 10, 2026',
+    impact: '-₹8,500',
+    growth: '-1.1% EXIT',
+    positive: false,
+    assetName: 'Tata Motors',
+  },
+]
+
+const formatHistoryDate = (value = new Date()) => new Date(value).toLocaleDateString('en-US', {
+  month: 'short',
+  day: 'numeric',
+  year: 'numeric',
+})
+
+const normalizeHistoryStatus = (status) => (String(status || '').toUpperCase() === 'SETTLED' ? 'SETTLED' : 'PENDING')
+
+const normalizeRecentSearches = (entries = []) => {
+  if (!Array.isArray(entries)) return []
+  const unique = []
+  entries.forEach((entry) => {
+    const clean = String(entry || '').trim()
+    if (!clean) return
+    if (unique.some((value) => value.toLowerCase() === clean.toLowerCase())) return
+    unique.push(clean)
+  })
+  return unique.slice(0, RECENT_SEARCH_LIMIT)
+}
+
+const normalizeActivityHistory = (rows = []) => {
+  if (!Array.isArray(rows)) return []
+  return rows
+    .filter(Boolean)
+    .map((row, index) => {
+      const status = normalizeHistoryStatus(row.status)
+      const rawImpact = String(row.impact || '')
+      const impactNumber = rawImpact
+        ? Number.parseFloat(rawImpact.replace(/[^0-9.-]/g, ''))
+        : 0
+      const safeImpactNumber = Number.isFinite(impactNumber) ? impactNumber : 0
+      const positive = typeof row.positive === 'boolean' ? row.positive : safeImpactNumber >= 0
+      const fallbackImpact = `${positive ? '+' : '-'}₹${Math.round(Math.abs(safeImpactNumber)).toLocaleString('en-IN')}`
+      const assetName = String(
+        row.assetName
+          || row.company
+          || row.ticker
+          || row.name
+          || `Holding ${index + 1}`
+      ).trim()
+      const idBase = String(assetName || `history-${index}`).replace(/[^a-z0-9]+/gi, '-').toLowerCase()
+
+      return {
+        id: row.id || `activity-${idBase}-${index}`,
+        icon: row.icon || (positive ? '📈' : '📉'),
+        name: row.name || `${assetName} Activity`,
+        sub: row.sub || `${assetName} · Portfolio`,
+        status,
+        date: row.date || formatHistoryDate(),
+        impact: rawImpact || fallbackImpact,
+        growth: row.growth || (status === 'SETTLED' ? 'SETTLED' : 'AWAITING SETTLEMENT'),
+        positive,
+        assetName,
+      }
+    })
+    .slice(0, HISTORY_STORAGE_LIMIT)
+}
+
+const buildHistoryFromHoldings = (holdings = []) => {
+  if (!Array.isArray(holdings) || holdings.length === 0) return []
+  return holdings
+    .filter(Boolean)
+    .slice(0, HISTORY_STORAGE_LIMIT)
+    .map((holding, index) => {
+      const company = String(holding.company || holding.ticker || `Holding ${index + 1}`).trim()
+      const sector = String(holding.sector || 'Uncategorized').trim()
+      const entryPrice = toNumber(holding.entryPrice)
+      const currentValue = toNumber(holding.currentValue)
+      const hasValidReturn = Number.isFinite(Number.parseFloat(holding.returnPercentage))
+      const returnPercentage = hasValidReturn
+        ? toNumber(holding.returnPercentage)
+        : entryPrice > 0
+          ? Number((((currentValue - entryPrice) / entryPrice) * 100).toFixed(2))
+          : 0
+      const impactValue = entryPrice > 0 ? currentValue - entryPrice : currentValue
+      const positive = impactValue >= 0
+      const status = index % 3 === 1 ? 'PENDING' : 'SETTLED'
+      const idBase = String(holding.ticker || company).replace(/[^a-z0-9]+/gi, '-').toLowerCase()
+
+      return {
+        id: `holding-${idBase}-${index}`,
+        icon: positive ? '📈' : '📉',
+        name: `${company} Position`,
+        sub: `${company} · ${sector}`,
+        status,
+        date: formatHistoryDate(new Date(Date.now() - (index * 24 * 60 * 60 * 1000))),
+        impact: `${positive ? '+' : '-'}₹${Math.round(Math.abs(impactValue)).toLocaleString('en-IN')}`,
+        growth: `${returnPercentage >= 0 ? '+' : ''}${returnPercentage.toFixed(2)}% MOVE`,
+        positive,
+        assetName: company,
+      }
+    })
+}
 
 const downloadBlob = (blob, fileName) => {
   const link = document.createElement('a')
@@ -135,11 +270,11 @@ function App({ user, onLogout, onUserUpdate, theme = 'light', onToggleTheme }) {
     notes: '',
   })
   const [depositStatus, setDepositStatus] = useState({ type: '', message: '' })
-  const [recentActivity] = useState([
-    { icon: '📈', name: 'TCS Buy Order', sub: 'Tata Consultancy · IT Equity', status: 'SETTLED', date: 'Mar 15, 2026', impact: '+₹12,400', growth: '+4.2% GROWTH', positive: true },
-    { icon: '💰', name: 'Quarterly Dividend', sub: 'HDFC Bank · Banking', status: 'PENDING', date: 'Mar 12, 2026', impact: '+₹3,120', growth: 'AUTO-INVESTED', positive: true },
-    { icon: '🏷️', name: 'Tata Motors Sell', sub: 'Tata Motors · Automotive', status: 'SETTLED', date: 'Mar 10, 2026', impact: '-₹8,500', growth: '-1.1% EXIT', positive: false },
-  ])
+  const [activityHistory, setActivityHistory] = useState([])
+  const [activityHistoryReady, setActivityHistoryReady] = useState(false)
+  const [activityNeedsSeed, setActivityNeedsSeed] = useState(false)
+  const [recentStockSearches, setRecentStockSearches] = useState([])
+  const [recentSearchReady, setRecentSearchReady] = useState(false)
 
   const [marketRows, setMarketRows] = useState([])
   const [marketLoading, setMarketLoading] = useState(false)
@@ -208,6 +343,23 @@ function App({ user, onLogout, onUserUpdate, theme = 'light', onToggleTheme }) {
     }
   }, [])
 
+  const trackRecentStockSearches = useCallback((searchTerm, rows = []) => {
+    const cleanSearch = String(searchTerm || '').trim()
+    if (!cleanSearch) return
+
+    const matchedNames = Array.isArray(rows)
+      ? rows
+        .map((row) => String(row?.company || row?.ticker || '').trim())
+        .filter(Boolean)
+        .slice(0, 3)
+      : []
+
+    const valuesToAdd = normalizeRecentSearches([...matchedNames, cleanSearch.toUpperCase()])
+    if (!valuesToAdd.length) return
+
+    setRecentStockSearches((prev) => normalizeRecentSearches([...valuesToAdd, ...prev]))
+  }, [])
+
   const fetchMarkets = useCallback(async () => {
     setMarketLoading(true)
     setMarketError('')
@@ -221,13 +373,15 @@ function App({ user, onLogout, onUserUpdate, theme = 'light', onToggleTheme }) {
       const data = await res.json()
       if (!res.ok || data.error) throw new Error(data.error || 'Failed to load market fields')
 
-      setMarketRows(Array.isArray(data.markets) ? data.markets : [])
+      const nextMarkets = Array.isArray(data.markets) ? data.markets : []
+      setMarketRows(nextMarkets)
+      trackRecentStockSearches(cleanSearch, nextMarkets)
     } catch (e) {
       console.log('Markets fetch error:', e)
       setMarketError('Unable to load market fields right now.')
     }
     setMarketLoading(false)
-  }, [marketSearch, marketSector])
+  }, [marketSearch, marketSector, trackRecentStockSearches])
 
   const fetchNiftyTicker = useCallback(async () => {
     try {
@@ -287,6 +441,74 @@ function App({ user, onLogout, onUserUpdate, theme = 'light', onToggleTheme }) {
   useEffect(() => {
     loadDepositDetails()
   }, [loadDepositDetails])
+
+  useEffect(() => {
+    setActivityHistoryReady(false)
+    setActivityNeedsSeed(false)
+    try {
+      const key = `profitly_activity_${currentUser?.id || 'demo'}`
+      const saved = localStorage.getItem(key)
+      if (!saved) {
+        setActivityHistory([])
+        setActivityNeedsSeed(true)
+      } else {
+        const parsed = JSON.parse(saved)
+        const normalized = normalizeActivityHistory(parsed)
+        setActivityHistory(normalized)
+      }
+    } catch {
+      setActivityHistory([])
+      setActivityNeedsSeed(true)
+    } finally {
+      setActivityHistoryReady(true)
+    }
+  }, [currentUser?.id])
+
+  useEffect(() => {
+    if (!activityHistoryReady) return
+    try {
+      const key = `profitly_activity_${currentUser?.id || 'demo'}`
+      localStorage.setItem(key, JSON.stringify(normalizeActivityHistory(activityHistory)))
+    } catch {
+      // ignore storage errors
+    }
+  }, [activityHistory, currentUser?.id, activityHistoryReady])
+
+  useEffect(() => {
+    if (!activityHistoryReady || !activityNeedsSeed) return
+    if (!Array.isArray(portfolioData?.holdings)) return
+    const seededRows = buildHistoryFromHoldings(portfolioData.holdings)
+    setActivityHistory(seededRows.length > 0 ? seededRows : DEFAULT_ACTIVITY_HISTORY)
+    setActivityNeedsSeed(false)
+  }, [portfolioData?.holdings, activityHistoryReady, activityNeedsSeed])
+
+  useEffect(() => {
+    setRecentSearchReady(false)
+    try {
+      const key = `profitly_recent_stock_searches_${currentUser?.id || 'demo'}`
+      const saved = localStorage.getItem(key)
+      if (!saved) {
+        setRecentStockSearches([])
+      } else {
+        const parsed = JSON.parse(saved)
+        setRecentStockSearches(normalizeRecentSearches(parsed))
+      }
+    } catch {
+      setRecentStockSearches([])
+    } finally {
+      setRecentSearchReady(true)
+    }
+  }, [currentUser?.id])
+
+  useEffect(() => {
+    if (!recentSearchReady) return
+    try {
+      const key = `profitly_recent_stock_searches_${currentUser?.id || 'demo'}`
+      localStorage.setItem(key, JSON.stringify(normalizeRecentSearches(recentStockSearches)))
+    } catch {
+      // ignore storage errors
+    }
+  }, [recentStockSearches, currentUser?.id, recentSearchReady])
 
   useEffect(() => {
     setChatReady(false)
@@ -405,6 +627,30 @@ function App({ user, onLogout, onUserUpdate, theme = 'light', onToggleTheme }) {
     } catch {
       // ignore
     }
+  }
+
+  const setActivitySettlementStatus = (activityId, nextStatus) => {
+    const normalizedStatus = normalizeHistoryStatus(nextStatus)
+    setActivityHistory((prev) => prev.map((row) => (
+      row.id === activityId
+        ? {
+          ...row,
+          status: normalizedStatus,
+          growth: normalizedStatus === 'SETTLED'
+            ? String(row.growth || '').replace('AWAITING SETTLEMENT', 'SETTLED')
+            : 'AWAITING SETTLEMENT',
+        }
+        : row
+    )))
+  }
+
+  const clearActivityHistory = () => {
+    setActivityHistory([])
+    setActivityNeedsSeed(false)
+  }
+
+  const clearRecentStockSearches = () => {
+    setRecentStockSearches([])
   }
 
   const saveDepositDetails = () => {
@@ -556,10 +802,14 @@ function App({ user, onLogout, onUserUpdate, theme = 'light', onToggleTheme }) {
   const holdings = Array.isArray(portfolioData?.holdings) ? portfolioData.holdings : []
 
   const filteredActivity = normalizedDashboardSearch
-    ? recentActivity.filter((item) =>
-      [item.name, item.sub, item.status, item.date, item.impact, item.growth]
+    ? activityHistory.filter((item) =>
+      [item.name, item.sub, item.status, item.date, item.impact, item.growth, item.assetName]
         .some((value) => String(value || '').toLowerCase().includes(normalizedDashboardSearch)))
-    : recentActivity
+    : activityHistory
+
+  const filteredRecentStockSearches = normalizedDashboardSearch
+    ? recentStockSearches.filter((name) => name.toLowerCase().includes(normalizedDashboardSearch))
+    : recentStockSearches
 
   const filteredHoldings = normalizedDashboardSearch
     ? holdings.filter((holding) =>
@@ -1143,7 +1393,7 @@ function App({ user, onLogout, onUserUpdate, theme = 'light', onToggleTheme }) {
                         <div className="shell-empty-state">No activity matched "{dashboardSearchTerm}".</div>
                       )}
                       {filteredActivity.map((item, i) => (
-                        <div key={i} className="shell-table-row">
+                        <div key={item.id || i} className="shell-table-row">
                           <div className="shell-table-asset">
                             <div className="shell-asset-icon">{item.icon}</div>
                             <div>
@@ -1176,12 +1426,37 @@ function App({ user, onLogout, onUserUpdate, theme = 'light', onToggleTheme }) {
                   <div className="shell-activity">
                     <div className="shell-activity-header">
                       <h3 className="shell-activity-title">{filteredActivity.length} records found</h3>
-                      <button className="shell-view-all" onClick={() => setSearchInput('')}>Clear Search</button>
+                      <div className="shell-history-actions">
+                        <button className="shell-view-all" onClick={() => setSearchInput('')}>Clear Search</button>
+                        <button className="shell-view-all shell-danger" onClick={clearActivityHistory}>Clear History</button>
+                      </div>
+                    </div>
+                    <div className="shell-history-recent-wrap">
+                      <div className="shell-history-recent-header">
+                        <p className="shell-history-recent-title">Recent Searched Stocks</p>
+                        <button className="shell-view-all" onClick={clearRecentStockSearches}>Clear Recent Searches</button>
+                      </div>
+                      {filteredRecentStockSearches.length === 0 ? (
+                        <p className="shell-history-recent-empty">No recent stock searches yet. Search in Markets to auto-save names here.</p>
+                      ) : (
+                        <div className="shell-history-search-chips">
+                          {filteredRecentStockSearches.map((stockName, index) => (
+                            <button
+                              key={`${stockName}-${index}`}
+                              className="shell-history-search-chip"
+                              onClick={() => setSearchInput(stockName)}
+                              title={`Filter history by ${stockName}`}
+                            >
+                              {stockName}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
                     <div className="shell-activity-table">
                       <div className="shell-table-header">
                         <span>ASSET / TRANSACTION</span>
-                        <span>STATUS</span>
+                        <span>PAYMENT STATUS</span>
                         <span>DATE</span>
                         <span>IMPACT</span>
                       </div>
@@ -1189,7 +1464,7 @@ function App({ user, onLogout, onUserUpdate, theme = 'light', onToggleTheme }) {
                         <div className="shell-empty-state">No history matched "{dashboardSearchTerm}". Try company name, status, or date.</div>
                       )}
                       {filteredActivity.map((item, i) => (
-                        <div key={i} className="shell-table-row">
+                        <div key={item.id || i} className="shell-table-row">
                           <div className="shell-table-asset">
                             <div className="shell-asset-icon">{item.icon}</div>
                             <div>
@@ -1197,8 +1472,22 @@ function App({ user, onLogout, onUserUpdate, theme = 'light', onToggleTheme }) {
                               <p className="shell-asset-sub">{item.sub}</p>
                             </div>
                           </div>
-                          <div>
+                          <div className="shell-history-status-cell">
                             <span className={`shell-status ${item.status.toLowerCase()}`}>{item.status}</span>
+                            <div className="shell-settlement-actions">
+                              <button
+                                className={`shell-settlement-btn settled ${item.status === 'SETTLED' ? 'active' : ''}`}
+                                onClick={() => setActivitySettlementStatus(item.id, 'SETTLED')}
+                              >
+                                Settled
+                              </button>
+                              <button
+                                className={`shell-settlement-btn pending ${item.status === 'PENDING' ? 'active' : ''}`}
+                                onClick={() => setActivitySettlementStatus(item.id, 'PENDING')}
+                              >
+                                Pending
+                              </button>
+                            </div>
                           </div>
                           <span className="shell-date">{item.date}</span>
                           <div className="shell-impact">
