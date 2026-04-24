@@ -874,6 +874,112 @@ body {
   gap: 6px;
 }
 
+.shell-dashboard-insights {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  width: min(460px, 100%);
+  margin-left: auto;
+}
+
+.shell-mini-insight-card {
+  min-height: 188px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.shell-mini-reco-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+}
+
+.shell-mini-reco-item {
+  border: 1px solid var(--border);
+  background: var(--navy-2);
+  border-radius: 10px;
+  padding: 8px 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.shell-mini-reco-item.positive {
+  border-color: rgba(16,185,129,0.35);
+}
+
+.shell-mini-reco-item.negative {
+  border-color: rgba(239,68,68,0.35);
+}
+
+.shell-mini-reco-item.neutral {
+  border-color: rgba(201,168,76,0.28);
+}
+
+.shell-mini-reco-stock {
+  font-size: 12px;
+  color: var(--text);
+  font-weight: 500;
+}
+
+.shell-mini-reco-action {
+  font-size: 10px;
+  letter-spacing: 0.7px;
+  color: var(--gold);
+  white-space: nowrap;
+}
+
+.shell-mini-reco-link {
+  margin-top: auto;
+  align-self: flex-start;
+}
+
+.shell-emotion-card {
+  align-items: center;
+  text-align: center;
+}
+
+.shell-emotion-emoji {
+  font-size: 42px;
+  line-height: 1;
+}
+
+.shell-emotion-label {
+  font-size: 16px;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.shell-emotion-text {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.shell-emotion-meter {
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--navy-2);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.shell-emotion-meter-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--gold), var(--gold-light));
+}
+
+.shell-emotion-score {
+  margin-top: auto;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
 .shell-reco-popup {
   position: fixed;
   right: 18px;
@@ -3103,6 +3209,16 @@ select:focus-visible {
   .shell-cards-row {
     grid-template-columns: 1fr;
     gap: 12px;
+  }
+
+  .shell-dashboard-insights {
+    grid-template-columns: 1fr;
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .shell-mini-insight-card {
+    min-height: 0;
   }
 
   .shell-alerts {

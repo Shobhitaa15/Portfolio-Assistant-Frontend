@@ -345,7 +345,6 @@ function App({ user, onLogout, onUserUpdate, theme = 'light', onToggleTheme }) {
   const [priceAlertDraft, setPriceAlertDraft] = useState({ stock: '', condition: 'above', targetPrice: '' })
   const [priceAlertNote, setPriceAlertNote] = useState('')
   const [settingsAlertFocusSignal, setSettingsAlertFocusSignal] = useState(0)
-  const [recommendationPopupOpen, setRecommendationPopupOpen] = useState(true)
 
   const [marketRows, setMarketRows] = useState([])
   const [marketLoading, setMarketLoading] = useState(false)
@@ -994,7 +993,7 @@ function App({ user, onLogout, onUserUpdate, theme = 'light', onToggleTheme }) {
     .map((holding) => getHoldingSignal(holding))
     .sort((a, b) => b.priority - a.priority || a.company.localeCompare(b.company))
   const highlightedSignals = portfolioSignals.filter((signal) => signal.action !== 'HOLD').slice(0, 4)
-  const popupSignals = highlightedSignals.slice(0, 2)
+  const dashboardSignals = highlightedSignals.slice(0, 2)
 
   const rebalancingSuggestions = (() => {
     if (!holdings.length) {
@@ -1046,6 +1045,59 @@ function App({ user, onLogout, onUserUpdate, theme = 'light', onToggleTheme }) {
     }
 
     return suggestions.slice(0, 3)
+  })()
+  const portfolioMood = (() => {
+    if (!holdings.length) {
+      return {
+        emoji: '🤔',
+        label: 'Awaiting Data',
+        detail: 'Add holdings to get a live portfolio mood check.',
+        score: 0,
+      }
+    }
+
+    const returnTilt = Math.max(-12, Math.min(12, avgReturn))
+    const alertPenalty = Math.min(25, triggeredAlertCount * 5)
+    const moodScore = Math.max(0, Math.min(100, Math.round(portfolioFitScore + returnTilt - alertPenalty)))
+
+    if (moodScore >= 85) {
+      return {
+        emoji: '😄',
+        label: 'Excellent',
+        detail: 'Portfolio is performing strongly with healthy balance.',
+        score: moodScore,
+      }
+    }
+    if (moodScore >= 70) {
+      return {
+        emoji: '🙂',
+        label: 'Healthy',
+        detail: 'Good posture overall. Keep monitoring for new opportunities.',
+        score: moodScore,
+      }
+    }
+    if (moodScore >= 55) {
+      return {
+        emoji: '😐',
+        label: 'Steady',
+        detail: 'Stable, but a few moves could improve risk-reward.',
+        score: moodScore,
+      }
+    }
+    if (moodScore >= 40) {
+      return {
+        emoji: '😟',
+        label: 'Watchlist',
+        detail: 'Portfolio needs attention on concentration or weak holdings.',
+        score: moodScore,
+      }
+    }
+    return {
+      emoji: '😬',
+      label: 'Risky',
+      detail: 'High stress detected. Consider rebalancing soon.',
+      score: moodScore,
+    }
   })()
 
   const configuredRisk = Math.round(toNumber(userSettings?.riskTolerance, 50))
@@ -1659,6 +1711,41 @@ function App({ user, onLogout, onUserUpdate, theme = 'light', onToggleTheme }) {
                     </div>
                   </div>
 
+                  <div className="shell-dashboard-insights">
+                    <div className="shell-card shell-mini-insight-card">
+                      <div className="shell-card-header-row">
+                        <p className="shell-card-label">RECOMMENDATIONS</p>
+                        <span className="shell-reco-badge">{triggeredAlertCount} alerts</span>
+                      </div>
+                      {dashboardSignals.length === 0 ? (
+                        <p className="shell-alert-text">No urgent recommendation right now.</p>
+                      ) : (
+                        <div className="shell-mini-reco-list">
+                          {dashboardSignals.map((signal, index) => (
+                            <div key={`dashboard-signal-${signal.company}-${index}`} className={`shell-mini-reco-item ${signal.tone}`}>
+                              <p className="shell-mini-reco-stock">{signal.company}</p>
+                              <p className="shell-mini-reco-action">{signal.action}</p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <button className="shell-view-all shell-mini-reco-link" onClick={openAlertCenter}>
+                        Open alert center
+                      </button>
+                    </div>
+
+                    <div className="shell-card shell-mini-insight-card shell-emotion-card">
+                      <p className="shell-card-label">PORTFOLIO EMOTION</p>
+                      <p className="shell-emotion-emoji">{portfolioMood.emoji}</p>
+                      <p className="shell-emotion-label">{portfolioMood.label}</p>
+                      <p className="shell-emotion-text">{portfolioMood.detail}</p>
+                      <div className="shell-emotion-meter">
+                        <div className="shell-emotion-meter-fill" style={{ width: `${portfolioMood.score}%` }} />
+                      </div>
+                      <p className="shell-emotion-score">{portfolioMood.score}/100 mood score</p>
+                    </div>
+                  </div>
+
                   {/* Recent Activity */}
                   <div className="shell-activity">
                     <div className="shell-activity-header">
@@ -1969,47 +2056,6 @@ function App({ user, onLogout, onUserUpdate, theme = 'light', onToggleTheme }) {
             </>
           )}
         </div>
-
-        {activeNav === 'Dashboard' && (
-          <div className={`shell-reco-popup ${recommendationPopupOpen ? 'expanded' : 'collapsed'}`}>
-            {recommendationPopupOpen ? (
-              <>
-                <div className="shell-reco-popup-header">
-                  <div>
-                    <p className="shell-reco-popup-title">Quick Recommendations</p>
-                    <p className="shell-reco-popup-sub">{triggeredAlertCount} triggered alerts</p>
-                  </div>
-                  <button className="shell-reco-popup-minimize" onClick={() => setRecommendationPopupOpen(false)}>
-                    Hide
-                  </button>
-                </div>
-
-                <div className="shell-reco-popup-list">
-                  {popupSignals.length === 0 ? (
-                    <p className="shell-reco-popup-empty">No urgent recommendation right now.</p>
-                  ) : (
-                    popupSignals.map((signal, index) => (
-                      <div key={`${signal.company}-${index}`} className={`shell-reco-popup-item ${signal.tone}`}>
-                        <p className="shell-reco-popup-stock">{signal.company}</p>
-                        <p className="shell-reco-popup-note">{signal.action}</p>
-                      </div>
-                    ))
-                  )}
-                </div>
-
-                <button className="shell-reco-popup-open-btn" onClick={openAlertCenter}>
-                  Open Alert Center
-                  {alertBadgeCount > 0 && <span className="shell-reco-popup-count">{alertBadgeLabel}</span>}
-                </button>
-              </>
-            ) : (
-              <button className="shell-reco-popup-chip" onClick={() => setRecommendationPopupOpen(true)}>
-                Recommendations
-                {alertBadgeCount > 0 && <span className="shell-reco-popup-count">{alertBadgeLabel}</span>}
-              </button>
-            )}
-          </div>
-        )}
 
         <footer className="shell-footer-line">
           <span>Profitly Sovereign Ledger (c) 2026 Profitly Technologies Pvt. Ltd.</span>
