@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 const SECTORS = ['IT', 'Banking', 'Healthcare', 'Automobile', 'Oil & Gas', 'Consumer Goods', 'Metals', 'Financial', 'Insurance', 'Infrastructure', 'Energy', 'Manufacturing']
 
@@ -27,6 +27,8 @@ const toNumber = (value, fallback = 0) => {
   return Number.isFinite(parsed) ? parsed : fallback
 }
 
+const formatCurrency = (value = 0) => `₹${Math.round(toNumber(value)).toLocaleString('en-IN')}`
+
 const loadSettingsFromStorage = (storageKey, user) => {
   const defaults = defaultSettings(user)
 
@@ -50,7 +52,7 @@ const loadSettingsFromStorage = (storageKey, user) => {
   }
 }
 
-export default function Settings({ user, userId = 'demo', onProfileUpdate }) {
+export default function Settings({ user, userId = 'demo', onProfileUpdate, alertCenter = null }) {
   const storageKey = useMemo(() => `profitly_settings_${userId}`, [userId])
   const initialSettings = loadSettingsFromStorage(storageKey, user)
 
@@ -62,6 +64,14 @@ export default function Settings({ user, userId = 'demo', onProfileUpdate }) {
   const [notifications, setNotifications] = useState(initialSettings.notifications)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
+  const alertsCardRef = useRef(null)
+
+  useEffect(() => {
+    if (!alertCenter?.focusSignal) return
+    if (!alertsCardRef.current) return
+
+    alertsCardRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [alertCenter?.focusSignal])
 
   const toggleSector = (sector) => {
     setSelectedSectors((prev) =>
@@ -276,6 +286,117 @@ export default function Settings({ user, userId = 'demo', onProfileUpdate }) {
           ))}
         </div>
       </div>
+
+      {alertCenter && (
+        <div ref={alertsCardRef} className="settings-card settings-alert-center">
+          <div className="shell-card-header-row">
+            <h3 className="settings-card-title">Recommendations & Alerts</h3>
+            <span className="shell-reco-badge">{alertCenter.triggeredAlertCount || 0} triggered</span>
+          </div>
+          <p className="settings-card-sub">Manage price alerts and review recommendation signals from one place.</p>
+
+          <div className="shell-reco-block">
+            <p className="shell-reco-title">Buy/Sell Signals</p>
+            {!Array.isArray(alertCenter.highlightedSignals) || alertCenter.highlightedSignals.length === 0 ? (
+              <p className="shell-alert-text">No urgent buy/sell signals. Portfolio is currently stable.</p>
+            ) : (
+              <div className="shell-reco-list">
+                {alertCenter.highlightedSignals.map((signal, index) => (
+                  <div key={`${signal.company}-${index}`} className={`shell-reco-item ${signal.tone}`}>
+                    <div>
+                      <p className="shell-asset-name">{signal.company}</p>
+                      <p className="shell-asset-sub">{signal.reason}</p>
+                    </div>
+                    <span className="shell-reco-action">{signal.action}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="shell-reco-block">
+            <p className="shell-reco-title">Price Alerts (Watched Stocks)</p>
+            <div className="shell-alert-form">
+              <input
+                list="profitly-watchlist-options-settings"
+                value={alertCenter.priceAlertDraft?.stock || ''}
+                onChange={(event) => {
+                  alertCenter.setPriceAlertDraft((prev) => ({ ...prev, stock: event.target.value }))
+                  alertCenter.setPriceAlertNote('')
+                }}
+                placeholder="Ticker or company"
+              />
+              <datalist id="profitly-watchlist-options-settings">
+                {(alertCenter.watchableStocks || []).map((stock) => (
+                  <option key={stock} value={stock} />
+                ))}
+              </datalist>
+              <select
+                value={alertCenter.priceAlertDraft?.condition || 'above'}
+                onChange={(event) => {
+                  alertCenter.setPriceAlertDraft((prev) => ({ ...prev, condition: event.target.value }))
+                  alertCenter.setPriceAlertNote('')
+                }}
+              >
+                <option value="above">Above</option>
+                <option value="below">Below</option>
+              </select>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={alertCenter.priceAlertDraft?.targetPrice || ''}
+                onChange={(event) => {
+                  alertCenter.setPriceAlertDraft((prev) => ({ ...prev, targetPrice: event.target.value }))
+                  alertCenter.setPriceAlertNote('')
+                }}
+                placeholder="Trigger price"
+              />
+              <button className="shell-alert-add-btn" onClick={alertCenter.addPriceAlert}>Add</button>
+            </div>
+            {alertCenter.priceAlertNote && (
+              <p className="shell-alert-note">{alertCenter.priceAlertNote}</p>
+            )}
+            {!Array.isArray(alertCenter.evaluatedPriceAlerts) || alertCenter.evaluatedPriceAlerts.length === 0 ? (
+              <p className="shell-alert-text">No price alerts yet. Add watched stocks to track triggers.</p>
+            ) : (
+              <div className="shell-alert-list">
+                {alertCenter.evaluatedPriceAlerts.slice(0, 8).map((alert) => (
+                  <div key={alert.id} className={`shell-alert-row ${alert.triggered ? 'triggered' : ''}`}>
+                    <div>
+                      <p className="shell-asset-name">{alert.stock}</p>
+                      <p className="shell-asset-sub">
+                        {alert.condition === 'above' ? 'Above' : 'Below'} {formatCurrency(alert.targetPrice)}
+                        {alert.livePrice !== null ? ` · Live ${formatCurrency(alert.livePrice)}` : ' · Live price unavailable'}
+                      </p>
+                    </div>
+                    <div className="shell-alert-actions">
+                      <span className={`shell-alert-pill ${alert.triggered ? 'triggered' : (alert.active ? 'active' : 'inactive')}`}>
+                        {alert.triggered ? 'Triggered' : (alert.active ? 'Watching' : 'Paused')}
+                      </span>
+                      <button className="shell-view-all" onClick={() => alertCenter.togglePriceAlert(alert.id)}>
+                        {alert.active ? 'Pause' : 'Resume'}
+                      </button>
+                      <button className="shell-view-all shell-danger" onClick={() => alertCenter.removePriceAlert(alert.id)}>
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="shell-reco-block">
+            <p className="shell-reco-title">Rebalancing Suggestions</p>
+            <div className="shell-rebalance-list">
+              {(alertCenter.rebalancingSuggestions || []).map((suggestion, index) => (
+                <p key={`rebalance-${index}`} className="shell-alert-text">{index + 1}. {suggestion}</p>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="settings-actions">
         {error && <p className="save-error">{error}</p>}

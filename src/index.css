@@ -425,6 +425,48 @@ body {
   background: var(--gold-dim);
 }
 
+.shell-notification-btn {
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--navy-3);
+  color: var(--text);
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.shell-notification-btn:hover {
+  border-color: var(--gold);
+  color: var(--gold);
+  background: var(--gold-dim);
+}
+
+.shell-notification-icon {
+  font-size: 15px;
+  line-height: 1;
+}
+
+.shell-notification-count {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--gold), var(--gold-light));
+  color: var(--navy);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+  padding: 0 4px;
+}
+
 /* ===== CONTENT ===== */
 .shell-content {
   flex: 1;
@@ -830,6 +872,144 @@ body {
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+
+.shell-reco-popup {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 35;
+}
+
+.shell-reco-popup.expanded {
+  width: min(320px, calc(100vw - 32px));
+  background: var(--navy-3);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 12px;
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.22);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.shell-reco-popup-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.shell-reco-popup-title {
+  font-size: 12px;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.shell-reco-popup-sub {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.shell-reco-popup-minimize {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 11px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
+.shell-reco-popup-minimize:hover {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
+.shell-reco-popup-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.shell-reco-popup-item {
+  background: var(--navy-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 10px;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.shell-reco-popup-item.positive {
+  border-color: rgba(16,185,129,0.35);
+}
+
+.shell-reco-popup-item.negative {
+  border-color: rgba(239,68,68,0.35);
+}
+
+.shell-reco-popup-item.neutral {
+  border-color: rgba(201,168,76,0.3);
+}
+
+.shell-reco-popup-stock {
+  font-size: 12px;
+  color: var(--text);
+  font-weight: 500;
+}
+
+.shell-reco-popup-note {
+  font-size: 10px;
+  color: var(--gold);
+  letter-spacing: 0.6px;
+  white-space: nowrap;
+}
+
+.shell-reco-popup-empty {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.shell-reco-popup-open-btn,
+.shell-reco-popup-chip {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--gold-dim);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+.shell-reco-popup-open-btn:hover,
+.shell-reco-popup-chip:hover {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
+.shell-reco-popup-count {
+  min-width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--gold), var(--gold-light));
+  color: var(--navy);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  padding: 0 5px;
+}
+
+.settings-alert-center {
+  transition: box-shadow 0.25s ease, border-color 0.25s ease;
 }
 
 .shell-deposit-grid {
@@ -3077,6 +3257,15 @@ select:focus-visible {
   .save-btn {
     width: 100%;
   }
+
+  .shell-reco-popup {
+    right: 12px;
+    bottom: 12px;
+  }
+
+  .shell-reco-popup.expanded {
+    width: min(320px, calc(100vw - 24px));
+  }
 }
 
 @media (max-width: 620px) {
@@ -3137,6 +3326,21 @@ select:focus-visible {
   .notification-item {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .shell-reco-popup {
+    left: 10px;
+    right: 10px;
+    bottom: 10px;
+  }
+
+  .shell-reco-popup.expanded {
+    width: auto;
+  }
+
+  .shell-reco-popup-chip,
+  .shell-reco-popup-open-btn {
+    width: 100%;
   }
 
 }
