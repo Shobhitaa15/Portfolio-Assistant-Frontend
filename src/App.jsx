@@ -5,6 +5,7 @@ import { apiUrl, withAuthHeaders } from './api'
 import Analytics from './Analytics'
 import Settings from './Settings'
 import Vault from './Vault'
+import AdminDashboard from './AdminDashboard'
 
 const toNumber = (value) => {
   const parsed = Number.parseFloat(value)
@@ -355,6 +356,7 @@ function App({ user, onLogout, onUserUpdate, theme = 'light', onToggleTheme }) {
   const [niftyTickerStatus, setNiftyTickerStatus] = useState('Loading Nifty 50 ticker...')
 
   const firstName = currentUser?.name?.split(' ')[0] || 'Investor'
+  const isAdminUser = currentUser?.isAdmin === true
 
   const getGreeting = () => {
     const hour = new Date().getHours()
@@ -1167,6 +1169,7 @@ function App({ user, onLogout, onUserUpdate, theme = 'light', onToggleTheme }) {
             { icon: '📊', label: 'Markets' },
             { icon: '📉', label: 'Analytics' },
             { icon: '🔒', label: 'Vault' },
+            ...(isAdminUser ? [{ icon: '🛡️', label: 'Admin' }] : []),
           ].map(item => (
             <button
               key={item.label}
@@ -1459,6 +1462,8 @@ function App({ user, onLogout, onUserUpdate, theme = 'light', onToggleTheme }) {
               userId={currentUser?.id || 'demo'}
               onSave={handleVaultSave}
             />
+          ) : activeNav === 'Admin' ? (
+            <AdminDashboard user={currentUser} />
           ) : (
             <>
               {activeTopTab === 'Overview' && (
