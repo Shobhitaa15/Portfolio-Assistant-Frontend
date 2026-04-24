@@ -994,6 +994,7 @@ function App({ user, onLogout, onUserUpdate, theme = 'light', onToggleTheme }) {
     .sort((a, b) => b.priority - a.priority || a.company.localeCompare(b.company))
   const highlightedSignals = portfolioSignals.filter((signal) => signal.action !== 'HOLD').slice(0, 4)
   const dashboardSignals = highlightedSignals.slice(0, 2)
+  const topDashboardSignal = dashboardSignals[0] || null
 
   const rebalancingSuggestions = (() => {
     if (!holdings.length) {
@@ -1527,6 +1528,24 @@ function App({ user, onLogout, onUserUpdate, theme = 'light', onToggleTheme }) {
                   <div className="shell-cards-row">
                     {/* Left column - stats */}
                     <div className="shell-left-col">
+                      <div className="shell-card shell-mini-insight-card shell-engine-side-card shell-reco-pop-card">
+                        <div className="shell-card-header-row">
+                          <p className="shell-card-label">RECOMMENDATIONS</p>
+                          <span className="shell-reco-badge">{triggeredAlertCount} alerts</span>
+                        </div>
+                        {topDashboardSignal ? (
+                          <div className={`shell-mini-reco-item ${topDashboardSignal.tone}`}>
+                            <p className="shell-mini-reco-stock">{topDashboardSignal.company}</p>
+                            <p className="shell-mini-reco-action">{topDashboardSignal.action}</p>
+                          </div>
+                        ) : (
+                          <p className="shell-alert-text">No urgent recommendation right now.</p>
+                        )}
+                        <button className="shell-view-all shell-mini-reco-link" onClick={openAlertCenter}>
+                          Open alert center
+                        </button>
+                      </div>
+
                       {/* Fit Score card */}
                       <div className="shell-card shell-fit-card">
                         <div className="shell-fit-head">
@@ -1668,6 +1687,16 @@ function App({ user, onLogout, onUserUpdate, theme = 'light', onToggleTheme }) {
 
                     {/* Right - Vault Protection */}
                     <div className="shell-right-col">
+                      <div className="shell-card shell-mini-insight-card shell-engine-side-card shell-emotion-card">
+                        <p className="shell-card-label">PORTFOLIO EMOTION</p>
+                        <p className="shell-emotion-emoji">{portfolioMood.emoji}</p>
+                        <p className="shell-emotion-label">{portfolioMood.label}</p>
+                        <p className="shell-emotion-text">{portfolioMood.detail}</p>
+                        <div className="shell-emotion-meter">
+                          <div className="shell-emotion-meter-fill" style={{ width: `${portfolioMood.score}%` }} />
+                        </div>
+                        <p className="shell-emotion-score">{portfolioMood.score}/100 mood score</p>
+                      </div>
                       <div className="shell-card">
                         <p className="shell-card-label">VAULT PROTECTION 🔒</p>
                         <p className="shell-alert-text">{vaultProtectionText}</p>
@@ -1708,41 +1737,6 @@ function App({ user, onLogout, onUserUpdate, theme = 'light', onToggleTheme }) {
                           <p className="shell-alert-text">No holdings found for the current search.</p>
                         )}
                       </div>
-                    </div>
-                  </div>
-
-                  <div className="shell-dashboard-insights">
-                    <div className="shell-card shell-mini-insight-card">
-                      <div className="shell-card-header-row">
-                        <p className="shell-card-label">RECOMMENDATIONS</p>
-                        <span className="shell-reco-badge">{triggeredAlertCount} alerts</span>
-                      </div>
-                      {dashboardSignals.length === 0 ? (
-                        <p className="shell-alert-text">No urgent recommendation right now.</p>
-                      ) : (
-                        <div className="shell-mini-reco-list">
-                          {dashboardSignals.map((signal, index) => (
-                            <div key={`dashboard-signal-${signal.company}-${index}`} className={`shell-mini-reco-item ${signal.tone}`}>
-                              <p className="shell-mini-reco-stock">{signal.company}</p>
-                              <p className="shell-mini-reco-action">{signal.action}</p>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                      <button className="shell-view-all shell-mini-reco-link" onClick={openAlertCenter}>
-                        Open alert center
-                      </button>
-                    </div>
-
-                    <div className="shell-card shell-mini-insight-card shell-emotion-card">
-                      <p className="shell-card-label">PORTFOLIO EMOTION</p>
-                      <p className="shell-emotion-emoji">{portfolioMood.emoji}</p>
-                      <p className="shell-emotion-label">{portfolioMood.label}</p>
-                      <p className="shell-emotion-text">{portfolioMood.detail}</p>
-                      <div className="shell-emotion-meter">
-                        <div className="shell-emotion-meter-fill" style={{ width: `${portfolioMood.score}%` }} />
-                      </div>
-                      <p className="shell-emotion-score">{portfolioMood.score}/100 mood score</p>
                     </div>
                   </div>
 
