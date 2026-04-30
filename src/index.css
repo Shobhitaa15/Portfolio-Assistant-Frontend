@@ -2045,6 +2045,16 @@ body {
 
 .login-google:hover { border-color: var(--gold); }
 
+.login-google-native {
+  min-height: 44px;
+  display: flex;
+  justify-content: center;
+}
+
+.login-google-native > div {
+  width: 100%;
+}
+
 .login-footer {
   text-align: center;
   font-size: 11px;
