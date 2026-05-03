@@ -45,7 +45,7 @@ export default function Auth({ onLogin, theme = 'light', onToggleTheme }) {
         persistSession(data)
       }
     } catch {
-      setError('Google sign-in failed. Make sure backend is running.')
+      setError('Google sign-in failed because the app could not reach the API. Check the backend URL and CORS settings.')
     } finally {
       setLoading(false)
     }

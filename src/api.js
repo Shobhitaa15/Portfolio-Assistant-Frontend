@@ -6,7 +6,16 @@ const fallbackBaseUrl = isLocalhost
   ? 'http://127.0.0.1:5000'
   : 'https://investment-portfolio-dc27.onrender.com';
 
-const rawBaseUrl = import.meta.env.VITE_API_BASE_URL || fallbackBaseUrl;
+const configuredBaseUrl = String(import.meta.env.VITE_API_BASE_URL || '').trim();
+const isBadProductionBaseUrl =
+  !isLocalhost &&
+  (/your-render-service/i.test(configuredBaseUrl) ||
+    /localhost:5000/i.test(configuredBaseUrl) ||
+    /127\.0\.0\.1:5000/i.test(configuredBaseUrl));
+
+const rawBaseUrl = configuredBaseUrl && !isBadProductionBaseUrl
+  ? configuredBaseUrl
+  : fallbackBaseUrl;
 
 export const API_BASE_URL = rawBaseUrl.replace(/\/+$/, '');
 
