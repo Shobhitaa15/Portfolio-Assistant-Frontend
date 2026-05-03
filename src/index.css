@@ -2045,14 +2045,26 @@ body {
 
 .login-google:hover { border-color: var(--gold); }
 
+.login-google-native-shell {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
 .login-google-native {
-  min-height: 44px;
   display: flex;
   justify-content: center;
 }
 
 .login-google-native > div {
   width: 100%;
+}
+
+.login-config-status {
+  color: var(--text-dim);
+  font-size: 11px;
+  margin: -4px 0 0;
+  text-align: center;
 }
 
 .login-footer {

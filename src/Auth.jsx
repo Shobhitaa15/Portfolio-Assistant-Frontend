@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { apiUrl } from './api'
 
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || ''
+const BUILD_GOOGLE_CLIENT_ID = String(import.meta.env.VITE_GOOGLE_CLIENT_ID || '').trim()
+const GOOGLE_CONFIG_SOURCE = BUILD_GOOGLE_CLIENT_ID ? 'frontend env' : 'backend config'
 const GOOGLE_SCRIPT_SRC = 'https://accounts.google.com/gsi/client'
 
 export default function Auth({ onLogin, theme = 'light', onToggleTheme }) {
@@ -10,6 +11,8 @@ export default function Auth({ onLogin, theme = 'light', onToggleTheme }) {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+  const [googleClientId, setGoogleClientId] = useState(BUILD_GOOGLE_CLIENT_ID)
+  const [googleConfigLoaded, setGoogleConfigLoaded] = useState(Boolean(BUILD_GOOGLE_CLIENT_ID))
   const [googleReady, setGoogleReady] = useState(false)
   const googleButtonRef = useRef(null)
 
@@ -48,14 +51,46 @@ export default function Auth({ onLogin, theme = 'light', onToggleTheme }) {
   }, [persistSession])
 
   useEffect(() => {
-    if (!GOOGLE_CLIENT_ID || typeof window === 'undefined') return undefined
+    if (BUILD_GOOGLE_CLIENT_ID || typeof window === 'undefined') return undefined
+
+    let cancelled = false
+    const controller = new AbortController()
+
+    const loadGoogleConfig = async () => {
+      try {
+        const response = await fetch(apiUrl('/api/auth/config'), { signal: controller.signal })
+        const data = await response.json().catch(() => ({}))
+        const runtimeClientId = String(data.googleClientId || '').trim()
+        if (!cancelled && runtimeClientId) {
+          setGoogleClientId(runtimeClientId)
+        }
+      } catch {
+        // Keep password auth usable even if the Google config fallback cannot load.
+      } finally {
+        if (!cancelled) {
+          setGoogleConfigLoaded(true)
+        }
+      }
+    }
+
+    loadGoogleConfig()
+
+    return () => {
+      cancelled = true
+      controller.abort()
+    }
+  }, [])
+
+  useEffect(() => {
+    setGoogleReady(false)
+    if (!googleClientId || typeof window === 'undefined') return undefined
 
     let cancelled = false
     const renderGoogleButton = () => {
       if (cancelled || !window.google?.accounts?.id || !googleButtonRef.current) return
 
       window.google.accounts.id.initialize({
-        client_id: GOOGLE_CLIENT_ID,
+        client_id: googleClientId,
         callback: (response) => handleGoogleCredential(response?.credential),
       })
 
@@ -102,7 +137,14 @@ export default function Auth({ onLogin, theme = 'light', onToggleTheme }) {
       script.removeEventListener('load', renderGoogleButton)
       script.removeEventListener('error', handleScriptError)
     }
-  }, [handleGoogleCredential, isRegister, theme])
+  }, [googleClientId, handleGoogleCredential, isRegister, theme])
+
+  useEffect(() => {
+    if (!googleClientId) return
+    setError((currentError) => (
+      currentError.startsWith('Google sign-in is not configured') ? '' : currentError
+    ))
+  }, [googleClientId])
 
   const handleSubmit = async () => {
     if (!form.email || !form.password) {
@@ -274,19 +316,21 @@ export default function Auth({ onLogin, theme = 'light', onToggleTheme }) {
 
           <div className="login-divider"><span>or continue with</span></div>
 
-          {GOOGLE_CLIENT_ID ? (
-            <div className="login-google-native" ref={googleButtonRef}>
+          {googleClientId ? (
+            <div className="login-google-native-shell">
               {!googleReady && (
                 <button className="login-google" type="button" disabled>
                   Loading Google sign-in...
                 </button>
               )}
+              <div className="login-google-native" ref={googleButtonRef} />
             </div>
           ) : (
             <button
               className="login-google"
               type="button"
-              onClick={() => setError('Google sign-in is not configured. Add VITE_GOOGLE_CLIENT_ID in frontend/.env and GOOGLE_CLIENT_ID in backend/.env.')}
+              disabled={!googleConfigLoaded}
+              onClick={() => setError('Google sign-in is not configured or the backend settings could not be loaded. Add VITE_GOOGLE_CLIENT_ID in frontend/.env or GOOGLE_CLIENT_ID in backend/.env, then restart the servers.')}
             >
               <svg width="18" height="18" viewBox="0 0 24 24">
                 <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -294,9 +338,13 @@ export default function Auth({ onLogin, theme = 'light', onToggleTheme }) {
                 <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
                 <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
               </svg>
-              Sign in with Google
+              {googleConfigLoaded ? 'Sign in with Google' : 'Loading Google sign-in...'}
             </button>
           )}
+
+          <p className="login-config-status">
+            Google config: {googleClientId ? `loaded from ${GOOGLE_CONFIG_SOURCE}` : googleConfigLoaded ? 'missing' : 'checking'}
+          </p>
 
           <p className="login-footer">
             By continuing you agree to Profitly's
