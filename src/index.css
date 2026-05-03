@@ -2049,22 +2049,22 @@ body {
   display: flex;
   flex-direction: column;
   justify-content: center;
+  width: 100%;
 }
 
 .login-google-native {
   display: flex;
   justify-content: center;
+  min-height: 44px;
+  width: 100%;
 }
 
 .login-google-native > div {
   width: 100%;
 }
 
-.login-config-status {
-  color: var(--text-dim);
-  font-size: 11px;
-  margin: -4px 0 0;
-  text-align: center;
+.login-google-native iframe {
+  width: 100% !important;
 }
 
 .login-footer {
