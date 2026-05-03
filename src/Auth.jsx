@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { apiUrl } from './api'
 
-const BUILD_GOOGLE_CLIENT_ID = String(import.meta.env.VITE_GOOGLE_CLIENT_ID || '').trim()
-const GOOGLE_CONFIG_SOURCE = BUILD_GOOGLE_CLIENT_ID ? 'frontend env' : 'backend config'
+const DEFAULT_GOOGLE_CLIENT_ID = '954113173254-fr1j4fup20p22qldoth07roh678e9rgq.apps.googleusercontent.com'
+const ENV_GOOGLE_CLIENT_ID = String(import.meta.env.VITE_GOOGLE_CLIENT_ID || '').trim()
+const BUILD_GOOGLE_CLIENT_ID = ENV_GOOGLE_CLIENT_ID || DEFAULT_GOOGLE_CLIENT_ID
+const GOOGLE_CONFIG_SOURCE = ENV_GOOGLE_CLIENT_ID ? 'frontend env' : 'app default'
 const GOOGLE_SCRIPT_SRC = 'https://accounts.google.com/gsi/client'
 
 export default function Auth({ onLogin, theme = 'light', onToggleTheme }) {
