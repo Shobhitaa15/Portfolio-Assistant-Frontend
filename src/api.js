@@ -1,5 +1,5 @@
 const DEFAULT_LOCAL_API_PORT = '5000';
-const PRODUCTION_API_BASE_URL = 'https://investment-portfolio-dc27.onrender.com';
+const PRODUCTION_API_BASE_URL = 'https://investment-portfolio-99ju.onrender.com';
 
 const getBrowserHostname = () => {
   if (typeof window === 'undefined') return '';

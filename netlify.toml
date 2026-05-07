@@ -3,7 +3,7 @@
   publish = "dist"
 
 [build.environment]
-  VITE_API_BASE_URL = "https://investment-portfolio-dc27.onrender.com"
+  VITE_API_BASE_URL = "https://investment-portfolio-99ju.onrender.com"
   VITE_GOOGLE_CLIENT_ID = "954113173254-fr1j4fup20p22qldoth07roh678e9rgq.apps.googleusercontent.com"
 
 [[redirects]]
